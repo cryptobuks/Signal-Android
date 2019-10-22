@@ -21,60 +21,58 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.BitmapFactory;
-import android.support.annotation.NonNull;
-import android.support.v4.app.NotificationCompat;
+import androidx.annotation.NonNull;
+import androidx.core.app.NotificationCompat;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 
+import org.thoughtcrime.securesms.dependencies.ApplicationDependencies;
 import org.thoughtcrime.securesms.gcm.FcmUtil;
-import org.thoughtcrime.securesms.jobmanager.SafeData;
+import org.thoughtcrime.securesms.jobmanager.Data;
+import org.thoughtcrime.securesms.jobmanager.Job;
+import org.thoughtcrime.securesms.jobmanager.impl.NetworkConstraint;
 import org.thoughtcrime.securesms.logging.Log;
 
 import org.thoughtcrime.securesms.PlayServicesProblemActivity;
 import org.thoughtcrime.securesms.R;
-import org.thoughtcrime.securesms.dependencies.InjectableType;
-import org.thoughtcrime.securesms.jobmanager.JobParameters;
 import org.thoughtcrime.securesms.notifications.NotificationChannels;
 import org.thoughtcrime.securesms.transport.RetryLaterException;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.whispersystems.libsignal.util.guava.Optional;
-import org.whispersystems.signalservice.api.SignalServiceAccountManager;
 import org.whispersystems.signalservice.api.push.exceptions.NonSuccessfulResponseCodeException;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
-import javax.inject.Inject;
+public class FcmRefreshJob extends BaseJob {
 
-import androidx.work.Data;
-import androidx.work.WorkerParameters;
-
-public class FcmRefreshJob extends ContextJob implements InjectableType {
+  public static final String KEY = "FcmRefreshJob";
 
   private static final String TAG = FcmRefreshJob.class.getSimpleName();
 
-  @Inject transient SignalServiceAccountManager textSecureAccountManager;
-
-  public FcmRefreshJob(@NonNull Context context, @NonNull WorkerParameters workerParameters) {
-    super(context, workerParameters);
+  public FcmRefreshJob() {
+    this(new Job.Parameters.Builder()
+                           .setQueue("FcmRefreshJob")
+                           .addConstraint(NetworkConstraint.KEY)
+                           .setMaxAttempts(1)
+                           .setLifespan(TimeUnit.MINUTES.toMillis(5))
+                           .setMaxInstances(1)
+                           .build());
   }
 
-  public FcmRefreshJob(Context context) {
-    super(context, JobParameters.newBuilder()
-                                .withGroupId(FcmRefreshJob.class.getSimpleName())
-                                .withDuplicatesIgnored(true)
-                                .withNetworkRequirement()
-                                .withRetryCount(1)
-                                .create());
-  }
-
-  @Override
-  protected void initialize(@NonNull SafeData data) {
+  private FcmRefreshJob(@NonNull Job.Parameters parameters) {
+    super(parameters);
   }
 
   @Override
-  protected @NonNull Data serialize(@NonNull Data.Builder dataBuilder) {
-    return dataBuilder.build();
+  public @NonNull Data serialize() {
+    return Data.EMPTY;
+  }
+
+  @Override
+  public @NonNull String getFactoryKey() {
+    return KEY;
   }
 
   @Override
@@ -100,7 +98,7 @@ public class FcmRefreshJob extends ContextJob implements InjectableType {
           Log.i(TAG, "Token didn't change.");
         }
 
-        textSecureAccountManager.setGcmId(token);
+        ApplicationDependencies.getSignalServiceAccountManager().setGcmId(token);
         TextSecurePreferences.setFcmToken(context, token.get());
         TextSecurePreferences.setFcmTokenLastSetTime(context, System.currentTimeMillis());
         TextSecurePreferences.setWebsocketRegistered(context, true);
@@ -116,7 +114,7 @@ public class FcmRefreshJob extends ContextJob implements InjectableType {
   }
 
   @Override
-  public boolean onShouldRetry(Exception throwable) {
+  public boolean onShouldRetry(@NonNull Exception throwable) {
     if (throwable instanceof NonSuccessfulResponseCodeException) return false;
     return true;
   }
@@ -139,4 +137,10 @@ public class FcmRefreshJob extends ContextJob implements InjectableType {
         .notify(12, builder.build());
   }
 
+  public static final class Factory implements Job.Factory<FcmRefreshJob> {
+    @Override
+    public @NonNull FcmRefreshJob create(@NonNull Parameters parameters, @NonNull Data data) {
+      return new FcmRefreshJob(parameters);
+    }
+  }
 }

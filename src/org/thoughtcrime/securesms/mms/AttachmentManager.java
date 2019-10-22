@@ -27,28 +27,24 @@ import android.graphics.Bitmap;
 import android.graphics.PorterDuff;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.os.Build;
 import android.provider.ContactsContract;
 import android.provider.MediaStore;
 import android.provider.OpenableColumns;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.text.TextUtils;
-
-import org.thoughtcrime.securesms.TransportOption;
-import org.thoughtcrime.securesms.mediasend.MediaSendActivity;
-import org.thoughtcrime.securesms.logging.Log;
 import android.util.Pair;
 import android.view.View;
 import android.widget.Toast;
 
-import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
-import com.google.android.gms.common.GooglePlayServicesRepairableException;
-import com.google.android.gms.location.places.ui.PlacePicker;
+import androidx.annotation.ColorInt;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.thoughtcrime.securesms.MediaPreviewActivity;
 import org.thoughtcrime.securesms.R;
+import org.thoughtcrime.securesms.TransportOption;
 import org.thoughtcrime.securesms.attachments.Attachment;
+import org.thoughtcrime.securesms.color.MaterialColor;
+import org.thoughtcrime.securesms.blurhash.BlurHash;
 import org.thoughtcrime.securesms.components.AudioView;
 import org.thoughtcrime.securesms.components.DocumentView;
 import org.thoughtcrime.securesms.components.RemovableEditableMediaView;
@@ -56,13 +52,17 @@ import org.thoughtcrime.securesms.components.ThumbnailView;
 import org.thoughtcrime.securesms.components.location.SignalMapView;
 import org.thoughtcrime.securesms.components.location.SignalPlace;
 import org.thoughtcrime.securesms.giph.ui.GiphyActivity;
+import org.thoughtcrime.securesms.logging.Log;
+import org.thoughtcrime.securesms.maps.PlacePickerActivity;
+import org.thoughtcrime.securesms.mediasend.MediaSendActivity;
 import org.thoughtcrime.securesms.permissions.Permissions;
-import org.thoughtcrime.securesms.providers.PersistentBlobProvider;
+import org.thoughtcrime.securesms.providers.BlobProvider;
+import org.thoughtcrime.securesms.providers.DeprecatedPersistentBlobProvider;
 import org.thoughtcrime.securesms.recipients.Recipient;
-import org.thoughtcrime.securesms.scribbles.ScribbleActivity;
 import org.thoughtcrime.securesms.util.BitmapUtil;
 import org.thoughtcrime.securesms.util.MediaUtil;
 import org.thoughtcrime.securesms.util.ThemeUtil;
+import org.thoughtcrime.securesms.util.Util;
 import org.thoughtcrime.securesms.util.ViewUtil;
 import org.thoughtcrime.securesms.util.concurrent.AssertedSuccessListener;
 import org.thoughtcrime.securesms.util.concurrent.ListenableFuture;
@@ -113,7 +113,6 @@ public class AttachmentManager {
       this.removableMediaView = ViewUtil.findById(root, R.id.removable_media_view);
 
       removableMediaView.setRemoveClickListener(new RemoveButtonListener());
-      removableMediaView.setEditClickListener(new EditButtonListener());
       thumbnail.setOnClickListener(new ThumbnailClickListener());
       documentView.getBackground().setColorFilter(ThemeUtil.getThemedColor(context, R.attr.conversation_item_bubble_background), PorterDuff.Mode.MULTIPLY);
     }
@@ -165,14 +164,16 @@ public class AttachmentManager {
   }
 
   private void cleanup(final @Nullable Uri uri) {
-    if (uri != null && PersistentBlobProvider.isAuthority(context, uri)) {
+    if (uri != null && DeprecatedPersistentBlobProvider.isAuthority(context, uri)) {
       Log.d(TAG, "cleaning up " + uri);
-      PersistentBlobProvider.getInstance(context).delete(context, uri);
+      DeprecatedPersistentBlobProvider.getInstance(context).delete(context, uri);
+    } else if (uri != null && BlobProvider.isAuthority(uri)) {
+      BlobProvider.getInstance().delete(context, uri);
     }
   }
 
   private void markGarbage(@Nullable Uri uri) {
-    if (uri != null && PersistentBlobProvider.isAuthority(context, uri)) {
+    if (uri != null && (DeprecatedPersistentBlobProvider.isAuthority(context, uri) || BlobProvider.isAuthority(uri))) {
       Log.d(TAG, "Marking garbage that needs cleaning: " + uri);
       garbage.add(uri);
     }
@@ -206,13 +207,17 @@ public class AttachmentManager {
       @Override
       public void onSuccess(@NonNull Bitmap result) {
         byte[]        blob          = BitmapUtil.toByteArray(result);
-        Uri           uri           = PersistentBlobProvider.getInstance(context)
-                                                            .create(context, blob, MediaUtil.IMAGE_PNG, null);
+        Uri           uri           = BlobProvider.getInstance()
+                                                  .forData(blob)
+                                                  .withMimeType(MediaUtil.IMAGE_JPEG)
+                                                  .createForSingleSessionInMemory();
         LocationSlide locationSlide = new LocationSlide(context, uri, blob.length, place);
 
-        setSlide(locationSlide);
-        attachmentListener.onAttachmentChanged();
-        returnResult.set(true);
+        Util.runOnMain(() -> {
+          setSlide(locationSlide);
+          attachmentListener.onAttachmentChanged();
+          returnResult.set(true);
+        });
       }
     });
 
@@ -311,7 +316,7 @@ public class AttachmentManager {
             }
 
             Log.d(TAG, "remote slide with size " + fileSize + " took " + (System.currentTimeMillis() - start) + "ms");
-            return mediaType.createSlide(context, uri, fileName, mimeType, fileSize, width, height);
+            return mediaType.createSlide(context, uri, fileName, mimeType, null, fileSize, width, height);
           }
         } finally {
           if (cursor != null) cursor.close();
@@ -321,10 +326,10 @@ public class AttachmentManager {
       }
 
       private @NonNull Slide getManuallyCalculatedSlideInfo(Uri uri, int width, int height) throws IOException {
-        long start      = System.currentTimeMillis();
-        Long mediaSize  = null;
-        String fileName = null;
-        String mimeType = null;
+        long     start     = System.currentTimeMillis();
+        Long     mediaSize = null;
+        String   fileName  = null;
+        String   mimeType  = null;
 
         if (PartAuthority.isLocalUri(uri)) {
           mediaSize = PartAuthority.getAttachmentSize(context, uri);
@@ -347,7 +352,7 @@ public class AttachmentManager {
         }
 
         Log.d(TAG, "local slide with size " + mediaSize + " took " + (System.currentTimeMillis() - start) + "ms");
-        return mediaType.createSlide(context, uri, fileName, mimeType, mediaSize, width, height);
+        return mediaType.createSlide(context, uri, fileName, mimeType, null, mediaSize, width, height);
       }
     }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
 
@@ -379,7 +384,7 @@ public class AttachmentManager {
                .ifNecessary()
                .withPermanentDenialDialog(activity.getString(R.string.AttachmentManager_signal_requires_the_external_storage_permission_in_order_to_attach_photos_videos_or_audio))
                .onAllGranted(() -> selectMediaType(activity, "image/*", new String[] {"image/*", "video/*"}, requestCode))
-               .onAllGranted(() -> activity.startActivityForResult(MediaSendActivity.getIntent(activity, recipient, body, transport), requestCode))
+               .onAllGranted(() -> activity.startActivityForResult(MediaSendActivity.buildGalleryIntent(activity, recipient, body, transport), requestCode))
                .execute();
   }
 
@@ -409,19 +414,14 @@ public class AttachmentManager {
                .request(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
                .ifNecessary()
                .withPermanentDenialDialog(activity.getString(R.string.AttachmentManager_signal_requires_location_information_in_order_to_attach_a_location))
-               .onAllGranted(() -> {
-                 try {
-                   activity.startActivityForResult(new PlacePicker.IntentBuilder().build(activity), requestCode);
-                 } catch (GooglePlayServicesRepairableException | GooglePlayServicesNotAvailableException e) {
-                   Log.w(TAG, e);
-                 }
-               })
+               .onAllGranted(() -> PlacePickerActivity.startActivityForResultAtCurrentLocation(activity, requestCode))
                .execute();
   }
 
-  public static void selectGif(Activity activity, int requestCode, boolean isForMms) {
+  public static void selectGif(Activity activity, int requestCode, boolean isForMms, @ColorInt int color) {
     Intent intent = new Intent(activity, GiphyActivity.class);
     intent.putExtra(GiphyActivity.EXTRA_IS_MMS, isForMms);
+    intent.putExtra(GiphyActivity.EXTRA_COLOR, color);
     activity.startActivityForResult(intent, requestCode);
   }
 
@@ -443,7 +443,7 @@ public class AttachmentManager {
                    Intent captureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
                    if (captureIntent.resolveActivity(activity.getPackageManager()) != null) {
                      if (captureUri == null) {
-                       captureUri = PersistentBlobProvider.getInstance(context).createForExternal(context, MediaUtil.IMAGE_JPEG);
+                       captureUri = DeprecatedPersistentBlobProvider.getInstance(context).createForExternal(context, MediaUtil.IMAGE_JPEG);
                      }
                      Log.d(TAG, "captureUri path is " + captureUri.getPath());
                      captureIntent.putExtra(MediaStore.EXTRA_OUTPUT, captureUri);
@@ -460,18 +460,16 @@ public class AttachmentManager {
     final Intent intent = new Intent();
     intent.setType(type);
 
-    if (extraMimeType != null && Build.VERSION.SDK_INT >= 19) {
+    if (extraMimeType != null) {
       intent.putExtra(Intent.EXTRA_MIME_TYPES, extraMimeType);
     }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-      intent.setAction(Intent.ACTION_OPEN_DOCUMENT);
-      try {
-        activity.startActivityForResult(intent, requestCode);
-        return;
-      } catch (ActivityNotFoundException anfe) {
-        Log.w(TAG, "couldn't complete ACTION_OPEN_DOCUMENT, no activity found. falling back.");
-      }
+    intent.setAction(Intent.ACTION_OPEN_DOCUMENT);
+    try {
+      activity.startActivityForResult(intent, requestCode);
+      return;
+    } catch (ActivityNotFoundException anfe) {
+      Log.w(TAG, "couldn't complete ACTION_OPEN_DOCUMENT, no activity found. falling back.");
     }
 
     intent.setAction(Intent.ACTION_GET_CONTENT);
@@ -521,15 +519,6 @@ public class AttachmentManager {
     }
   }
 
-  private class EditButtonListener implements View.OnClickListener {
-    @Override
-    public void onClick(View v) {
-      Intent intent = new Intent(context, ScribbleActivity.class);
-      intent.setData(getSlideUri());
-      ((Activity)context).startActivityForResult(intent, ScribbleActivity.SCRIBBLE_REQUEST_CODE);
-    }
-  }
-
   public interface AttachmentListener {
     void onAttachmentChanged();
   }
@@ -537,20 +526,21 @@ public class AttachmentManager {
   public enum MediaType {
     IMAGE, GIF, AUDIO, VIDEO, DOCUMENT, VCARD;
 
-    public @NonNull Slide createSlide(@NonNull  Context context,
-                                      @NonNull  Uri     uri,
-                                      @Nullable String fileName,
-                                      @Nullable String mimeType,
-                                                long    dataSize,
-                                                int     width,
-                                                int     height)
+    public @NonNull Slide createSlide(@NonNull  Context  context,
+                                      @NonNull  Uri      uri,
+                                      @Nullable String   fileName,
+                                      @Nullable String   mimeType,
+                                      @Nullable BlurHash blurHash,
+                                                long     dataSize,
+                                                int      width,
+                                                int      height)
     {
       if (mimeType == null) {
         mimeType = "application/octet-stream";
       }
 
       switch (this) {
-      case IMAGE:    return new ImageSlide(context, uri, dataSize, width, height);
+      case IMAGE:    return new ImageSlide(context, uri, dataSize, width, height, blurHash);
       case GIF:      return new GifSlide(context, uri, dataSize, width, height);
       case AUDIO:    return new AudioSlide(context, uri, dataSize, false);
       case VIDEO:    return new VideoSlide(context, uri, dataSize);

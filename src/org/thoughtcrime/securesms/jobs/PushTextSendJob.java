@@ -1,11 +1,9 @@
 package org.thoughtcrime.securesms.jobs;
 
-import android.content.Context;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import org.thoughtcrime.securesms.database.MessagingDatabase.SyncMessageId;
 import org.thoughtcrime.securesms.database.RecipientDatabase.UnidentifiedAccessMode;
-import org.thoughtcrime.securesms.jobmanager.SafeData;
 
 import org.thoughtcrime.securesms.ApplicationContext;
 import org.thoughtcrime.securesms.crypto.UnidentifiedAccessUtil;
@@ -14,7 +12,9 @@ import org.thoughtcrime.securesms.database.DatabaseFactory;
 import org.thoughtcrime.securesms.database.NoSuchMessageException;
 import org.thoughtcrime.securesms.database.SmsDatabase;
 import org.thoughtcrime.securesms.database.model.SmsMessageRecord;
-import org.thoughtcrime.securesms.dependencies.InjectableType;
+import org.thoughtcrime.securesms.dependencies.ApplicationDependencies;
+import org.thoughtcrime.securesms.jobmanager.Data;
+import org.thoughtcrime.securesms.jobmanager.Job;
 import org.thoughtcrime.securesms.notifications.MessageNotifier;
 import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.service.ExpiringMessageManager;
@@ -32,40 +32,33 @@ import org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserExce
 
 import java.io.IOException;
 
-import javax.inject.Inject;
+public class PushTextSendJob extends PushSendJob {
 
-import androidx.work.Data;
-import androidx.work.WorkerParameters;
-
-public class PushTextSendJob extends PushSendJob implements InjectableType {
-
-  private static final long serialVersionUID = 1L;
+  public static final String KEY = "PushTextSendJob";
 
   private static final String TAG = PushTextSendJob.class.getSimpleName();
 
   private static final String KEY_MESSAGE_ID = "message_id";
 
-  @Inject transient SignalServiceMessageSender messageSender;
-
   private long messageId;
 
-  public PushTextSendJob(@NonNull Context context, @NonNull WorkerParameters workerParameters) {
-    super(context, workerParameters);
+  public PushTextSendJob(long messageId, @NonNull Recipient recipient) {
+    this(constructParameters(recipient), messageId);
   }
 
-  public PushTextSendJob(Context context, long messageId, Address destination) {
-    super(context, constructParameters(destination));
+  private PushTextSendJob(@NonNull Job.Parameters parameters, long messageId) {
+    super(parameters);
     this.messageId = messageId;
   }
 
   @Override
-  protected void initialize(@NonNull SafeData data) {
-    messageId = data.getLong(KEY_MESSAGE_ID);
+  public @NonNull Data serialize() {
+    return new Data.Builder().putLong(KEY_MESSAGE_ID, messageId).build();
   }
 
   @Override
-  protected @NonNull Data serialize(@NonNull Data.Builder dataBuilder) {
-    return dataBuilder.putLong(KEY_MESSAGE_ID, messageId).build();
+  public @NonNull String getFactoryKey() {
+    return KEY;
   }
 
   @Override
@@ -97,7 +90,7 @@ public class PushTextSendJob extends PushSendJob implements InjectableType {
       database.markUnidentified(messageId, unidentified);
 
       if (recipient.isLocalNumber()) {
-        SyncMessageId id = new SyncMessageId(recipient.getAddress(), record.getDateSent());
+        SyncMessageId id = new SyncMessageId(recipient.getId(), record.getDateSent());
         DatabaseFactory.getMmsSmsDatabase(context).incrementDeliveryReceiptCount(id, System.currentTimeMillis());
         DatabaseFactory.getMmsSmsDatabase(context).incrementReadReceiptCount(id, System.currentTimeMillis());
       }
@@ -105,13 +98,13 @@ public class PushTextSendJob extends PushSendJob implements InjectableType {
       if (TextSecurePreferences.isUnidentifiedDeliveryEnabled(context)) {
         if (unidentified && accessMode == UnidentifiedAccessMode.UNKNOWN && profileKey == null) {
           log(TAG, "Marking recipient as UD-unrestricted following a UD send.");
-          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient, UnidentifiedAccessMode.UNRESTRICTED);
+          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient.getId(), UnidentifiedAccessMode.UNRESTRICTED);
         } else if (unidentified && accessMode == UnidentifiedAccessMode.UNKNOWN) {
           log(TAG, "Marking recipient as UD-enabled following a UD send.");
-          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient, UnidentifiedAccessMode.ENABLED);
+          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient.getId(), UnidentifiedAccessMode.ENABLED);
         } else if (!unidentified && accessMode != UnidentifiedAccessMode.DISABLED) {
           log(TAG, "Marking recipient as UD-disabled following a non-UD send.");
-          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient, UnidentifiedAccessMode.DISABLED);
+          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient.getId(), UnidentifiedAccessMode.DISABLED);
         }
       }
 
@@ -126,17 +119,17 @@ public class PushTextSendJob extends PushSendJob implements InjectableType {
       warn(TAG, "Failure", e);
       database.markAsPendingInsecureSmsFallback(record.getId());
       MessageNotifier.notifyMessageDeliveryFailed(context, record.getRecipient(), record.getThreadId());
-      ApplicationContext.getInstance(context).getJobManager().add(new DirectoryRefreshJob(context, false));
+      ApplicationDependencies.getJobManager().add(new DirectoryRefreshJob(false));
     } catch (UntrustedIdentityException e) {
       warn(TAG, "Failure", e);
-      database.addMismatchedIdentity(record.getId(), Address.fromSerialized(e.getE164Number()), e.getIdentityKey());
+      database.addMismatchedIdentity(record.getId(), Recipient.external(context, e.getE164Number()).getId(), e.getIdentityKey());
       database.markAsSentFailed(record.getId());
       database.markAsPush(record.getId());
     }
   }
 
   @Override
-  public boolean onShouldRetry(Exception exception) {
+  public boolean onShouldRetry(@NonNull Exception exception) {
     if (exception instanceof RetryLaterException) return true;
 
     return false;
@@ -160,7 +153,8 @@ public class PushTextSendJob extends PushSendJob implements InjectableType {
     try {
       rotateSenderCertificateIfNecessary();
 
-      SignalServiceAddress             address            = getPushAddress(message.getIndividualRecipient().getAddress());
+      SignalServiceMessageSender       messageSender      = ApplicationDependencies.getSignalServiceMessageSender();
+      SignalServiceAddress             address            = getPushAddress(message.getIndividualRecipient().requireAddress());
       Optional<byte[]>                 profileKey         = getProfileKey(message.getIndividualRecipient());
       Optional<UnidentifiedAccessPair> unidentifiedAccess = UnidentifiedAccessUtil.getAccessFor(context, message.getIndividualRecipient());
 
@@ -189,6 +183,13 @@ public class PushTextSendJob extends PushSendJob implements InjectableType {
     } catch (IOException e) {
       warn(TAG, "Failure", e);
       throw new RetryLaterException(e);
+    }
+  }
+
+  public static class Factory implements Job.Factory<PushTextSendJob> {
+    @Override
+    public @NonNull PushTextSendJob create(@NonNull Parameters parameters, @NonNull Data data) {
+      return new PushTextSendJob(parameters, data.getLong(KEY_MESSAGE_ID));
     }
   }
 }

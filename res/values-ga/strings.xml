@@ -6,10 +6,13 @@
   <string name="delete">Scrios</string>
   <string name="please_wait">Fan le do thoil...</string>
   <string name="save">Cuir i dtaisce é</string>
+  <string name="note_to_self">Nóta Pearsanta</string>
   <!--AbstractNotificationBuilder-->
   <string name="AbstractNotificationBuilder_new_message">Teachtaireacht nua</string>
   <!--AlbumThumbnailView-->
   <string name="AlbumThumbnailView_plus">\+%d</string>
+  <!--ApplicationMigrationActivity-->
+  <string name="ApplicationMigrationActivity__signal_is_updating">Tá Signal ag nuashonrú...</string>
   <!--ApplicationPreferencesActivity-->
   <string name="ApplicationPreferencesActivity_currently_s">Faoi láthair: %s</string>
   <string name="ApplicationPreferenceActivity_you_havent_set_a_passphrase_yet">Níl nath faire socraithe agat fós!</string>
@@ -62,11 +65,15 @@
   <string name="DraftDatabase_Draft_video_snippet">(físeán)</string>
   <string name="DraftDatabase_Draft_location_snippet">(suíomh)</string>
   <string name="DraftDatabase_Draft_quote_snippet">(freagair)</string>
-  <!--AttchmentManager-->
+  <!--AttachmentManager-->
   <string name="AttachmentManager_cant_open_media_selection">Ní féidir teacht ar fheidhmchláirín chun meán a roghnú.</string>
+  <string name="AttachmentManager_signal_requires_the_external_storage_permission_in_order_to_attach_photos_videos_or_audio">Tá gá ag Signal le cead stóras chun griangraif a thógáil, ach ní ceadaítear é go deo. Lean ar aghaidh, le do thoil, go socruithe aipe, roghnaigh \"Ceadanna\", agus cumasaigh \"Stóras\".</string>
   <string name="AttachmentManager_signal_requires_contacts_permission_in_order_to_attach_contact_information">Tá gá ag Signal le cead teagmhálaí chun eolas teagmhálaí a cheangail, ach ní ceadaítear é go deo. Lean ar aghaidh, le do thoil, go socruithe aipe, roghnaigh \"Ceadanna\", agus cumasaigh \"Teagmhálaí\". </string>
   <string name="AttachmentManager_signal_requires_location_information_in_order_to_attach_a_location">Tá gá ag Signal le cead áite i gcomhair do áit a cheangail, ach ní ceadaítear é go deo. Lean ar aghaidh, le do thoil, go socruithe aipe, roghnaigh \"Ceadanna\", agus cumasaigh \"Áit\". </string>
   <string name="AttachmentManager_signal_requires_the_camera_permission_in_order_to_take_photos_but_it_has_been_permanently_denied">Tá gá ag Signal le cead cheamara chun griangraif a thógáil, ach ní ceadaítear é go deo. Lean ar aghaidh, le do thoil, go socruithe aipe, roghnaigh \"Ceadanna\", agus cumasaigh \"Ceamara\". </string>
+  <!--AttachmentUploadJob-->
+  <string name="AttachmentUploadJob_uploading_media">Ag uasluchtú na meán...</string>
+  <string name="AttachmentUploadJob_compressing_video_start">Ag comhbhrúigh an fhíseáin...</string>
   <!--AudioSlidePlayer-->
   <string name="AudioSlidePlayer_error_playing_audio">Tharla botún ag seinm na fuaime!</string>
   <!--BlockedContactsActivity-->
@@ -79,13 +86,26 @@
   <!--CallScreen-->
   <string name="CallScreen_Incoming_call">Glao isteach</string>
   <!--CameraActivity-->
-  <string name="CameraActivity_camera_unavailable">Níl an grianghrafadán ar fáil.</string>
   <string name="CameraActivity_image_save_failure">Theip air an íomhá a thaisceadh.</string>
+  <!--CameraXFragment-->
+  <string name="CameraXFragment_capture_description">Gabh é</string>
+  <string name="CameraXFragment_change_camera_description">Athraigh an grianghrafadán</string>
+  <string name="CameraXFragment_open_gallery_description">Oscail an gailearaí</string>
+  <!--CameraContacts-->
+  <string name="CameraContacts_recent_contacts">Teagmhálaithe le déanaí</string>
+  <string name="CameraContacts_signal_contacts">Teagmhálaithe Signal</string>
+  <string name="CameraContacts_signal_groups">Braislí Signal</string>
+  <string name="CameraContacts_select_signal_recipients">Roghnaigh faighteoirí Signal</string>
+  <string name="CameraContacts_no_signal_contacts">Níl aon teagmhálaithe Signal ann</string>
+  <string name="CameraContacts_cant_find_who_youre_looking_for">Nach féidir an duine atá lorg agat a aimsiú?</string>
+  <string name="CameraContacts_invite_a_contact_to_join_signal">Tabhair cuireadh do theagmhálaí chuig Signal</string>
+  <string name="CameraContacts__menu_search">Cuardaigh</string>
   <!--ClearProfileActivity-->
   <string name="ClearProfileActivity_remove">Bain é</string>
   <string name="ClearProfileActivity_remove_profile_photo">Bain do ghrianghraf próifíle?</string>
   <!--CommunicationActions-->
   <string name="CommunicationActions_no_browser_found">Níor aimsíodh aon líonléitheoir.</string>
+  <string name="CommunicationActions_a_cellular_call_is_already_in_progress">Tá glao gutháin ar siúl cheana.</string>
   <!--ConfirmIdentityDialog-->
   <string name="ConfirmIdentityDialog_your_safety_number_with_s_has_changed">D\'athraíodh do uimhir shábhála le %1$s. Ciallaíonn sé sin go bhfuil duine éigéan ag iarraigh do teagmháil a idircheapadh, nó go athshuiteáil %2$s Signal.</string>
   <string name="ConfirmIdentityDialog_you_may_wish_to_verify_your_safety_number_with_this_contact">B\'fhéidir go mhian leat do uimhir shábhála a dheimhniú leis an dteagmhálaí seo.</string>
@@ -111,6 +131,7 @@
   <string name="ContactShareEditActivity_invalid_contact">Ní raibh an teagmhálaí roghnaithe bailí</string>
   <!--ConversationItem-->
   <string name="ConversationItem_error_not_delivered">Theip ar an seoladh. Cnag air chun sonraí a fheiceáil</string>
+  <string name="ConversationItem_received_key_exchange_message_tap_to_process">Teachtaireacht malartú eochracha faighta. Brúigh chun próiséiseáil.</string>
   <string name="ConversationItem_group_action_left">D\'fhág %1$s an bhaicle.</string>
   <string name="ConversationItem_click_to_approve_unencrypted">Theip ar an seoladh, cnag air i gcomhair rogha nach bhfuil slán</string>
   <string name="ConversationItem_click_to_approve_unencrypted_dialog_message"><b>Ní</b> bheidh an teachtaireacht seo criptithe mar níl an faighteoir sa lucht Signal a thuilleadh.\n\nSeol teachtaireacht neamhcriptithe?</string>
@@ -118,6 +139,9 @@
   <string name="ConversationItem_copied_text">Macasamhlaíodh %s </string>
   <string name="ConversationItem_from_s">ó %s</string>
   <string name="ConversationItem_to_s">chuig %s</string>
+  <string name="ConversationItem_read_more">  Léigh a thuilleadh</string>
+  <string name="ConversationItem_download_more">  Íoslódáil tuilleadh</string>
+  <string name="ConversationItem_pending"> Ag feitheamh</string>
   <!--ConversationActivity-->
   <string name="ConversationActivity_reset_secure_session_question">Athshocraigh rith teachtaireachta slán?</string>
   <string name="ConversationActivity_this_may_help_if_youre_having_encryption_problems">B\'fhéidir go gcabhraíonn sé seo má bhíonn fadhbanna criptiú sa chomhrá seo. Ní chaillítear do theachtaireachtaí.</string>
@@ -139,7 +163,6 @@
   <string name="ConversationActivity_transport_insecure_mms">MMS easlán</string>
   <string name="ConversationActivity_transport_signal">Signal</string>
   <string name="ConversationActivity_lets_switch_to_signal">Téimís i muinín Signal %1$s</string>
-  <string name="ConversationActivity_lets_use_this_to_chat">Déanaimís comhrá ar seo: %1$s</string>
   <string name="ConversationActivity_error_leaving_group">Tharla botún ag fágáil an bhaicle</string>
   <string name="ConversationActivity_specify_recipient">Roghnaigh teagmhálaí</string>
   <string name="ConversationActivity_unblock_this_contact_question">Bain an bac den teagmhálaí seo?</string>
@@ -160,6 +183,9 @@
   <string name="ConversationActivity_quoted_contact_message">%1$s %2$s</string>
   <string name="ConversationActivity_yes">Tá</string>
   <string name="ConversationActivity_no">Níl</string>
+  <string name="ConversationActivity_search_position">%1$d as %2$d</string>
+  <string name="ConversationActivity_no_results">Gan torthaí</string>
+  <string name="ConversationActivity_new_say_it_with_stickers">Nua! Abair le greamáin é</string>
   <!--ConversationAdapter-->
   <plurals name="ConversationAdapter_n_unread_messages">
     <item quantity="one">%d teachtaireacht neamhléite</item>
@@ -183,6 +209,8 @@
     <item quantity="many">Scriosfaidh sé seo go buan gach %1$d dteachtaireacht roghnaithe.</item>
     <item quantity="other">Scriosfaidh sé seo go buan gach %1$d theachtaireacht roghnaithe.</item>
   </plurals>
+  <string name="ConversationFragment_save_to_sd_card">Taisc sa stóras é?</string>
+  <string name="ConversationFragment_unable_to_write_to_sd_card_exclamation">Ní féidir scríobh chun stóras.</string>
   <string name="ConversationFragment_pending">Ar feitheamh...</string>
   <string name="ConversationFragment_push">Sonraí (Signal)</string>
   <string name="ConversationFragment_mms">MMS</string>
@@ -191,6 +219,7 @@
   <string name="ConversationFragment_deleting_messages">Ag scriosadh teachtaireachtaí...</string>
   <string name="ConversationFragment_quoted_message_not_found">Níor aimsíodh an teachtaireacht bhunaidh</string>
   <string name="ConversationFragment_quoted_message_no_longer_available">Níl an teachtaireacht bhunaidh le fáil a thuilleadh</string>
+  <string name="ConversationFragment_failed_to_open_message">Theip air an teachtaireacht a oscailt</string>
   <!--ConversationListActivity-->
   <string name="ConversationListActivity_there_is_no_browser_installed_on_your_device">Níl aon líonléitheoir suiteáilte ar do ghléas.</string>
   <!--ConversationListFragment-->
@@ -206,20 +235,25 @@
   <string name="ConversationListFragment_deleting_selected_conversations">Ag scriosadh na comhráite roghnaithe...</string>
   <string name="ConversationListFragment_undo">CEALAIGH</string>
   <!--ConversationListItem-->
+  <string name="ConversationListItem_key_exchange_message">Teachtaireacht malartú eocharacha</string>
   <!--ConversationListItemAction-->
+  <!--ConversationTitleView-->
+  <string name="ConversationTitleView_verified">Fíordheimhnithe</string>
   <!--CreateProfileActivity-->
   <string name="CreateProfileActivity_your_profile_info">Do eolas próifíle</string>
   <string name="CreateProfileActivity_error_setting_profile_photo">Tharla botún ag athrú do ghrianghraf próifíle</string>
   <string name="CreateProfileActivity_problem_setting_profile">Fadhb ag athrú do phróifíl</string>
   <string name="CreateProfileActivity_profile_photo">Grianghraf próifíle</string>
   <string name="CreateProfileActivity_too_long">Ró-fhada</string>
+  <string name="CreateProfileActivity_profile_name">Ainm Próifíle</string>
+  <string name="CreateProfileActivity_set_up_your_profile">Cumraigh do phroifíl</string>
   <!--CustomDefaultPreference-->
   <string name="CustomDefaultPreference_using_custom">Ag baint feidhme as saincheapú: %s</string>
   <string name="CustomDefaultPreference_using_default">Ag baint feidhme as an réamhshocrú: %s</string>
   <string name="CustomDefaultPreference_none">Dada</string>
   <!--DateUtils-->
   <string name="DateUtils_just_now">Anois</string>
-  <string name="DateUtils_minutes_ago">%d nóim</string>
+  <string name="DateUtils_minutes_ago">%dm</string>
   <string name="DateUtils_today">Inniu</string>
   <string name="DateUtils_yesterday">Inné</string>
   <!--DeliveryStatus-->
@@ -258,9 +292,13 @@
   <string name="ExperienceUpgradeActivity_ready_for_your_closeup">An bhfuil tú réidh do do ghrianghraf gar-amhairc?</string>
   <string name="ExperienceUpgradeActivity_now_you_can_share_a_profile_photo_and_name_with_friends_on_signal">Is féidir do ghrianghraf próifíle agus do aimn a chomhroinn le cairde anois le Signal.</string>
   <string name="ExperienceUpgradeActivity_signal_profiles_are_here">Tá próifíl Signal anseo</string>
+  <string name="ExperienceUpgradeActivity_typing_ui_title">Tá leideoirí clóscríobh tagtha</string>
+  <string name="ExperienceUpgradeActivity_enable_typing_indicators">Cumasaigh leideoirí clóscríobh</string>
+  <string name="ExperienceUpgradeActivity_turn_on_typing_indicators">Cur leideoirí clóscríobh ar súil</string>
   <string name="ExperienceUpgradeActivity_no_thanks">Ní raibh maith agaibh</string>
   <string name="ExperienceUpgradeActivity_got_it">Tuigim sin</string>
   <!--GcmBroadcastReceiver-->
+  <string name="GcmBroadcastReceiver_retrieving_a_message">Ag fáil teachtaireacht...</string>
   <!--GcmRefreshJob-->
   <string name="GcmRefreshJob_Permanent_Signal_communication_failure">Fadhb cumarsáid Signal buan!</string>
   <!--GiphyActivity-->
@@ -288,6 +326,7 @@
   <string name="GroupShareProfileView_make_visible">Cuir le fáil</string>
   <!--GroupMembersDialog-->
   <string name="GroupMembersDialog_me">Mise</string>
+  <!--CropImageActivity-->
   <!--InputPanel-->
   <string name="InputPanel_tap_and_hold_to_record_a_voice_message_release_to_send">Brúigh agus coinnigh síos é chun glórtheachtaireacht a thaifeadadh, scaoil chun í a sheoladh</string>
   <!--InviteActivity-->
@@ -307,6 +346,9 @@
   <string name="MessageDetailsRecipient_failed_to_send">Theip air seoladh</string>
   <string name="MessageDetailsRecipient_new_safety_number">Uimhir shábhála nua</string>
   <!--LongMessageActivity-->
+  <string name="LongMessageActivity_unable_to_find_message">Ní féidir an teachtaireacht a aimsiú</string>
+  <string name="LongMessageActivity_message_from_s">Teachtaireacht ó %1$s</string>
+  <string name="LongMessageActivity_your_message">Do theachtaireacht</string>
   <!--MessageRetrievalService-->
   <string name="MessageRetrievalService_signal">Signal</string>
   <!--MmsDownloader-->
@@ -338,8 +380,17 @@
   <string name="NotificationMmsMessageRecord_error_downloading_mms_message">Tharla botún ag íosluchtú teachtaireacht MMS, cnag chun ath-íosluchtú.</string>
   <!--MediaPickerActivity-->
   <string name="MediaPickerActivity_send_to">Seol chuig %s</string>
+  <string name="MediaPickerActivity__menu_open_camera">Oscail an grianghrafadán</string>
   <!--MediaPickerItemFragment-->
+  <string name="MediaPickerItemFragment_tap_to_select">Cnag chun é a roghnú</string>
   <!--MediaSendActivity-->
+  <string name="MediaSendActivity_add_a_caption">Cuir ceannteideal leis...</string>
+  <string name="MediaSendActivity_camera_unavailable">Níl an grianghrafadán ar fáil.</string>
+  <string name="MediaSendActivity_message_to_s">Teachtaireacht chuig %s</string>
+  <string name="MediaSendActivity_message">Teachtaireacht</string>
+  <string name="MediaSendActivity_select_recipients">Roghnaigh faighteoirí</string>
+  <string name="MediaSendActivity_signal_needs_access_to_your_contacts">Tá gá ag Signal riochtain ar do theagmhálaithe chun iad a thaispeáint.</string>
+  <string name="MediaSendActivity_select_recipients_description">Roghnaigh faighteoirí</string>
   <!--MediaRepository-->
   <string name="MediaRepository_all_media">Gach meán</string>
   <!--MessageRecord-->
@@ -389,8 +440,12 @@
   <string name="PassphrasePromptActivity_watermark_content_description">Deilbhín Signal</string>
   <string name="PassphrasePromptActivity_ok_button_content_description">Seol isteach an nath faire</string>
   <string name="PassphrasePromptActivity_invalid_passphrase_exclamation">Nath faire neamhbhailí!</string>
+  <!--PlacePickerActivity-->
+  <string name="PlacePickerActivity_title">Léarscáil</string>
+  <string name="PlacePickerActivity_not_a_valid_address">Ní Seoladh bailí é sin</string>
+  <string name="PlacePickerActivity_drop_pin">Caith uait an biorán</string>
+  <string name="PlacePickerActivity_accept_address">Glac leis an seoladh</string>
   <!--PlayServicesProblemFragment-->
-  <!--PushNotificationReceiveJob-->
   <!--RatingManager-->
   <string name="RatingManager_rate_this_app">Tabhair do mheas faoin bhfeidhmchláirín seo</string>
   <string name="RatingManager_if_you_enjoy_using_this_app_please_take_a_moment">Má bainnean tú sult as an aip seo, fan nóiméad chun sinne a chabhrú trí do mheas féin.</string>
@@ -442,16 +497,20 @@ a shonrú</string>
   <string name="RegistrationActivity_less_information">Níos lú eolais</string>
   <string name="RegistrationActivity_signal_needs_access_to_your_contacts_and_media_in_order_to_connect_with_friends">Tá gá ag Signal riochtain ar do theagmhálaithe agus do mheáin chun nasc a dhéanamh le cairde, teachtaireachtaí a mhalairt agus glaonna slán a dhéanamh.</string>
   <string name="RegistrationActivity_to_easily_verify_your_phone_number_signal_can_automatically_detect_your_verification_code">Chun do uimhir fóin a deimhniú, is féidir le Signal to uimhir deimhnithe a léamh uaidh féin má tá cead ag Signal do theachtaireachtaí SMS a léamh.</string>
+  <string name="RegistrationActivity_next">Ar aghaidh</string>
   <string name="RegistrationActivity_continue">Lean ar aghaidh</string>
   <string name="RegistrationActivity_call">Glao</string>
+  <!--RevealableMessageView-->
+  <string name="RevealableMessageView_photo">Grianghraf</string>
+  <string name="RevealableMessageView_video">Físeán</string>
+  <string name="RevealableMessageView_viewed">Feicthe</string>
+  <string name="RevealableMessageView_outgoing_media">Meáin</string>
   <!--ScribbleActivity-->
   <!--Search-->
   <string name="SearchFragment_no_results">Níor aimsíodh aon torthaí le haghaidh \'%s\'</string>
   <string name="SearchFragment_header_conversations">Comhráite</string>
   <string name="SearchFragment_header_contacts">Teagmhálaithe</string>
   <string name="SearchFragment_header_messages">Teachtaireachtaí</string>
-  <!--SendJob-->
-  <string name="SendJob_sending_a_message">Ag seoladh teachtaireacht...</string>
   <!--SharedContactDetailsActivity-->
   <string name="SharedContactDetailsActivity_add_to_contacts">Cuir leis na teagmhálacha</string>
   <string name="SharedContactDetailsActivity_invite_to_signal">Tabhair cuireadh chuig Signal</string>
@@ -463,6 +522,7 @@ a shonrú</string>
   <string name="SharedContactView_message">Teachtaireacht Signal</string>
   <!--Slide-->
   <string name="Slide_image">Íomhá</string>
+  <string name="Slide_sticker">Greamán</string>
   <string name="Slide_audio">Fuaim</string>
   <string name="Slide_video">Físeán</string>
   <!--SmsMessageRecord-->
@@ -471,6 +531,17 @@ a shonrú</string>
   <string name="SmsMessageRecord_secure_session_reset">D\'athshocraigh tú an rith teachtaireachta slán.</string>
   <string name="SmsMessageRecord_secure_session_reset_s">D\'athshocraigh %s an rith teachtaireachta slán.</string>
   <string name="SmsMessageRecord_duplicate_message">Teachtaireacht dúblach.</string>
+  <!--StickerManagementActivity-->
+  <string name="StickerManagementActivity_stickers">Greamáin</string>
+  <!--StickerManagementAdapter-->
+  <string name="StickerManagementAdapter_untitled">Gan teideal</string>
+  <string name="StickerManagementAdapter_unknown">Anaithnid</string>
+  <!--StickerPackPreviewActivity-->
+  <string name="StickerPackPreviewActivity_untitled">Gan teideal</string>
+  <string name="StickerPackPreviewActivity_unknown">Anaithnid</string>
+  <string name="StickerPackPreviewActivity_install">Suiteáil</string>
+  <string name="StickerPackPreviewActivity_remove">Bain é</string>
+  <string name="StickerPackPreviewActivity_stickers">Greamáin</string>
   <!--ThreadRecord-->
   <string name="ThreadRecord_group_updated">Nuashonraíodh an bhaicle</string>
   <string name="ThreadRecord_left_the_group">Baicle fágtha</string>
@@ -480,6 +551,7 @@ a shonrú</string>
   <string name="ThreadRecord_called_you">Ghlaoigh siad ort</string>
   <string name="ThreadRecord_missed_call">Glao caillte</string>
   <string name="ThreadRecord_media_message">Teachtaireacht mheán</string>
+  <string name="ThreadRecord_sticker">Greamán</string>
   <string name="ThreadRecord_s_is_on_signal">Tá %s ar Signal! </string>
   <string name="ThreadRecord_disappearing_message_time_updated_to_s">Shocraíodh go imeoidh teachtaireachtaí as amharc tar éis %s.</string>
   <string name="ThreadRecord_safety_number_changed">Athraíodh an uimhir shábhála</string>
@@ -510,6 +582,7 @@ a shonrú</string>
   <string name="VerifyIdentityActivity_no_safety_number_to_compare_was_found_in_the_clipboard">Níl aon uimhir shábhála sa ghearrthaisce chun cuir i gcomórtas leis.</string>
   <string name="VerifyIdentityActivity_signal_needs_the_camera_permission_in_order_to_scan_a_qr_code_but_it_has_been_permanently_denied">Tá gá ag Signal cead cheamara chun QR code a scanadh, ach ní ceadaítear é go deo. Lean ar aghaidh, le do thoil, go socruithe aipe, roghnaigh \"Ceadanna\", agus cumasaigh \"Ceamara\". </string>
   <string name="VerifyIdentityActivity_unable_to_scan_qr_code_without_camera_permission">Ní féidir QR code a scanadh gan cead Cheamara.</string>
+  <!--ViewOnceMessageActivity-->
   <!--MessageDisplayHelper-->
   <string name="MessageDisplayHelper_bad_encrypted_message">Teachtaireacht criptiú go mícheart</string>
   <string name="MessageDisplayHelper_message_encrypted_for_non_existing_session">Teachtaireacht criptiú le haghaidh rith teachtaireachta neamheiseach</string>
@@ -545,9 +618,11 @@ a shonrú</string>
   <string name="MessageNotifier_mark_all_as_read">Rianaigh uile mar léite</string>
   <string name="MessageNotifier_mark_read">Rianaigh mar léite</string>
   <string name="MessageNotifier_media_message">Teachtaireacht mheán</string>
+  <string name="MessageNotifier_sticker">Greamán</string>
   <string name="MessageNotifier_reply">Freagair</string>
-  <string name="MessageNotifier_pending_signal_messages">Ar feitheamh ar teachtaireachtaí Signal</string>
-  <string name="MessageNotifier_you_have_pending_signal_messages">Tá teachtaireachtaí Signal ar feitheamh agat, cnag chun iad a oscailt agus a athfháil.</string>
+  <string name="MessageNotifier_signal_message">Teachtaireacht Signal</string>
+  <string name="MessageNotifier_unsecured_sms">SMS nach bhfuil slán</string>
+  <string name="MessageNotifier_you_may_have_new_messages">B\'fhéidir go bhfuil teachtaireachtaí nua agat</string>
   <string name="MessageNotifier_contact_message">%1$s %2$s</string>
   <string name="MessageNotifier_unknown_contact_message">Teagmhálaí</string>
   <!--Notification Channels-->
@@ -588,6 +663,15 @@ a shonrú</string>
   <string name="WebRtcCallScreen_end_call">Críochnaigh an glao</string>
   <!--WebRtcCallControls-->
   <string name="WebRtcCallControls_tap_to_enable_your_video">Cnag chun d\'fhíseán a chumasú</string>
+  <!--WebRtcCallControls Content Descriptions-->
+  <string name="WebRtcCallControls_contact_photo_description">Grianghraf den teagmhálaí</string>
+  <string name="WebRtcCallControls_speaker_button_description">Callaire</string>
+  <string name="WebRtcCallControls_bluetooth_button_description">Bluetooth</string>
+  <string name="WebRtcCallControls_mute_button_description">Balbhaigh</string>
+  <string name="WebRtcCallControls_your_camera_button_description">Do ghrianghrafadán</string>
+  <string name="WebRtcCallControls_switch_to_rear_camera_button_description">Athraigh chuig an ngrianghrafadán ar chúl</string>
+  <string name="WebRtcCallControls_answer_call_description">Freagair an glao</string>
+  <string name="WebRtcCallControls_reject_call_description">Diúltaigh an glao</string>
   <!--attachment_type_selector-->
   <string name="attachment_type_selector__audio">Fuaim</string>
   <string name="attachment_type_selector__audio_description">Fuaim</string>
@@ -610,6 +694,10 @@ a shonrú</string>
   <string name="change_passphrase_activity__repeat_new_passphrase">Scríobh arís an nath faire nua</string>
   <!--contact_selection_activity-->
   <string name="contact_selection_activity__enter_name_or_number">Cuir isteach ainm nó uimhir</string>
+  <string name="contact_selection_activity__invite_to_signal">Tabhair cuireadh chuig Signal</string>
+  <!--contact_filter_toolbar-->
+  <string name="contact_filter_toolbar__clear_entered_text_description">Glan an téacs isteach</string>
+  <string name="contact_filter_toolbar__show_keyboard_description">Taispeáin an méarchlár</string>
   <!--contact_selection_group_activity-->
   <string name="contact_selection_group_activity__no_contacts">Gan teagmhalaí.</string>
   <string name="contact_selection_group_activity__finding_contacts">Ag lódáil na teagmhálaithe...</string>
@@ -627,6 +715,7 @@ a shonrú</string>
   <string name="conversation_activity__type_message_sms_insecure">SMS nach bhfuil slán</string>
   <string name="conversation_activity__type_message_mms_insecure">MMS nach bhfuil slán</string>
   <string name="conversation_activity__from_sim_name">Ó %1$s</string>
+  <string name="conversation_activity__sim_n">SIM %1$d</string>
   <string name="conversation_activity__send">Seol</string>
   <string name="conversation_activity__compose_description">Cumadh teachtaireachta</string>
   <string name="conversation_activity__emoji_toggle_description">Scoránaigh an méarchlár emoji</string>
@@ -634,7 +723,8 @@ a shonrú</string>
   <string name="conversation_activity__quick_attachment_drawer_record_and_send_audio_description">Ceangaltán fuaime a thaifid agus a sheoladh</string>
   <string name="conversation_activity__enable_signal_for_sms">Cumasaigh Signal le haghaidh SMS</string>
   <!--conversation_input_panel-->
-  <string name="conversation_input_panel__slide_to_cancel">SLEAMHNAIGH CHUN É A CHEALÚ</string>
+  <string name="conversation_input_panel__slide_to_cancel">Sleamhnaigh chun é a chur ar ceal</string>
+  <string name="conversation_input_panel__cancel">Cealaigh</string>
   <!--conversation_item-->
   <string name="conversation_item__mms_image_description">Teachtaireacht mheán</string>
   <string name="conversation_item__secure_message_description">Teachtaireacht slán</string>
@@ -646,13 +736,14 @@ a shonrú</string>
   <!--conversation_item_received-->
   <string name="conversation_item_received__contact_photo_description">Grianghraf den teagmhálaí</string>
   <!--audio_view-->
-  <string name="audio_view__play_accessibility_description">Seinn</string>
-  <string name="audio_view__pause_accessibility_description">Cuir ar sos é</string>
+  <string name="audio_view__play_pause_accessibility_description">Seinn ... Cuir ar sos</string>
   <string name="audio_view__download_accessibility_description">Íosluchtaigh é</string>
   <!--QuoteView-->
   <string name="QuoteView_audio">Fuaim</string>
   <string name="QuoteView_video">Físeán</string>
   <string name="QuoteView_photo">Grianghraf</string>
+  <string name="QuoteView_media">Teachtaireacht mheán</string>
+  <string name="QuoteView_sticker">Greamán</string>
   <string name="QuoteView_document">Cáipéis</string>
   <string name="QuoteView_you">Tusa</string>
   <string name="QuoteView_original_missing">Níor aimsíodh an teachtaireacht bhunaidh</string>
@@ -717,8 +808,6 @@ a shonrú</string>
   <string name="database_migration_activity__skip">Léim thar seo</string>
   <string name="database_migration_activity__import">Tabhair isteach </string>
   <string name="database_migration_activity__importing">AG TABHAIRT ISTEACH</string>
-  <!--database_upgrade_activity-->
-  <string name="database_upgrade_activity__updating_database">Ag nuashonrú an bhunachair shonraí</string>
   <!--load_more_header-->
   <string name="load_more_header__see_full_conversation">Féach ar an gcomhrá ar fad</string>
   <string name="load_more_header__loading">Ag luchtú</string>
@@ -757,8 +846,6 @@ a shonrú</string>
   <string name="recipient_preferences__ringtone">Glaofhuaimeanna</string>
   <!--- redphone_call_controls-->
   <string name="redphone_call_card__signal_call">Glao Signal</string>
-  <string name="redphone_call_controls__mute">Balbhaigh</string>
-  <string name="redphone_call_controls__flip_camera_rear">Malartaigh grianghrafadáin</string>
   <!--registration_activity-->
   <string name="registration_activity__phone_number">UIMHIR GHUTHÁIN</string>
   <string name="registration_activity__verify_your_number">Fíordheimhniú Do Uimhir</string>
@@ -826,13 +913,6 @@ a shonrú</string>
   <string name="arrays__high">Ard</string>
   <string name="arrays__max">Uasmhéid</string>
   <!--plurals.xml-->
-  <plurals name="hours_ago">
-    <item quantity="one">%d amháin</item>
-    <item quantity="two">%d uair</item>
-    <item quantity="few">%d uair</item>
-    <item quantity="many">%d uair</item>
-    <item quantity="other">%d uair</item>
-  </plurals>
   <!--preferences.xml-->
   <string name="preferences__sms_mms">SMS agus MMS</string>
   <string name="preferences__pref_all_sms_title">Glac le gach SMS</string>
@@ -894,6 +974,8 @@ a shonrú</string>
   <string name="preferences__incognito_keyboard">Méarchlár faoi cheilt</string>
   <string name="preferences__read_receipts">Adhmálacha léamh</string>
   <string name="preferences__if_read_receipts_are_disabled_you_wont_be_able_to_see_read_receipts">Má tá adhmálacha léamh díchumasaithe, ní féidir leat adhmálacha léamh ó dhaoine else a fheiceáil.</string>
+  <string name="preferences__typing_indicators">Leideoirí clóscríobh</string>
+  <string name="preferences__if_typing_indicators_are_disabled_you_wont_be_able_to_see_typing_indicators">Má múchtar leideoirí clóscríobh, ní bheifear in ann leideoirí clóscríobh ó daoine eile a fheiscint.</string>
   <string name="preferences_app_protection__blocked_contacts">Teagmhálaithe le bac orthu</string>
   <string name="preferences_chats__when_using_mobile_data">Nuair atá feidhm á baint as sonraí soghluaiste</string>
   <string name="preferences_chats__when_using_wifi">Nuair atá feidhm á baint as Wi-Fi</string>
@@ -915,6 +997,8 @@ a shonrú</string>
   <string name="preferences_chats__message_text_size">Méid chlófhoirne na teachtaireachta</string>
   <string name="preferences_events__contact_joined_signal">Chuaigh an teagmhálaí isteach in Signal</string>
   <string name="preferences_notifications__priority">Tosaíocht</string>
+  <string name="preferences_communication__category_sealed_sender">Seoltóir Séalaithe</string>
+  <string name="preferences_communication__sealed_sender_display_indicators">Taispeáin táscairí</string>
   <string name="preferences_communication__sealed_sender_learn_more">Foghlaim tuilleadh</string>
   <!--****************************************-->
   <!--menus-->
@@ -945,12 +1029,14 @@ a shonrú</string>
   <string name="conversation_list_batch__menu_select_all">Roghnaigh uile</string>
   <string name="conversation_list_batch_archive__menu_archive_selected">Roghnaíodh cartlann</string>
   <!--conversation_list-->
+  <string name="conversation_list_search_description">Cuardaigh</string>
   <!--conversation_list_item_view-->
   <string name="conversation_list_item_view__contact_photo_image">Íomha ghrianghraif den teagmhálaí</string>
   <string name="conversation_list_item_view__archived">Curtha sa chartlann</string>
   <string name="conversation_list_item_inbox_zero__zip_zilch_zero_nada_nyou_re_all_caught_up">Tada, faic, náid.\nNíl rud ar bit le déanamh!</string>
   <!--conversation_list_fragment-->
   <string name="conversation_list_fragment__fab_content_description">Comhrá nua</string>
+  <string name="conversation_list_fragment__open_camera_description">Oscail an Grianghrafadán</string>
   <string name="conversation_list_fragment__give_your_inbox_something_to_write_home_about_get_started_by_messaging_a_friend">Tabhair rud éigin do do bhosca isteach. Tosaigh anois trí theachtaireacht a sheoladh chuig cara.</string>
   <!--conversation_secure_verified-->
   <string name="conversation_secure_verified__menu_reset_secure_session">Athshocraigh rith teachtaireachta slán</string>
@@ -1037,9 +1123,11 @@ a shonrú</string>
   <string name="BackupDialog_delete_backups">Scrios cúltacaithe?</string>
   <string name="BackupDialog_delete_backups_statement">Scrios cúltacaithe</string>
   <string name="BackupDialog_copied_to_clipboard">Macasamhlaithe chuig an ngearrthaisce</string>
+  <string name="ChatsPreferenceFragment_last_backup_s">An cúltaca deireanach: %s</string>
   <string name="ChatsPreferenceFragment_in_progress">Ar siúil</string>
   <string name="LocalBackupJob_creating_backup">Ag cruthú cúltaca...</string>
   <string name="ProgressPreference_d_messages_so_far">%d dteachtaireacht go nuige seo</string>
+  <string name="RegistrationActivity_wrong_number">Uimhir mhícheart</string>
   <string name="BackupUtil_never">Choíche</string>
   <string name="BackupUtil_unknown">Anaithnid</string>
   <string name="preferences_app_protection__screen_lock">Glas an scáileáin</string>
@@ -1048,10 +1136,12 @@ a shonrú</string>
   <string name="registration_lock_dialog_view__enter_pin">Cuir isteach an UAP</string>
   <string name="registration_lock_dialog_view__confirm_pin">Deimhnaigh an UAP</string>
   <string name="registration_lock_reminder_view__enter_pin">Cuir isteach an UAP</string>
+  <string name="preferences_app_protection__registration_lock">Glas Clárúcháin</string>
   <string name="RegistrationActivity_too_many_attempts">An iomarca iarrachtaí</string>
   <string name="RegistrationActivity_oh_no">Ochón!</string>
   <string name="RegistrationLockDialog_i_forgot_my_pin">Tá m\'UAP dearmadta agam.</string>
   <string name="RegistrationLockDialog_forgotten_pin">Ar dhearmad tú d\'UAP?</string>
+  <string name="RegistrationLockDialog_registration_lock">Glas Clárúcháin</string>
   <string name="RegistrationLockDialog_enable">Cumasaigh</string>
   <string name="RegistrationLockDialog_disable">Díchumasaigh</string>
   <string name="preferences_chats__backups">Cúltacaithe</string>

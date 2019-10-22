@@ -18,10 +18,6 @@
 package org.thoughtcrime.securesms.components.webrtc;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.design.widget.FloatingActionButton;
-import android.support.v4.view.ViewCompat;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.TextUtils;
@@ -36,17 +32,21 @@ import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.view.ViewCompat;
+
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.mms.GlideApp;
+import org.thoughtcrime.securesms.recipients.LiveRecipient;
 import org.thoughtcrime.securesms.recipients.Recipient;
-import org.thoughtcrime.securesms.recipients.RecipientModifiedListener;
-import org.thoughtcrime.securesms.service.WebRtcCallService;
-import org.thoughtcrime.securesms.util.Util;
+import org.thoughtcrime.securesms.recipients.RecipientForeverObserver;
+import org.thoughtcrime.securesms.ringrtc.CameraState;
 import org.thoughtcrime.securesms.util.VerifySpan;
 import org.thoughtcrime.securesms.util.ViewUtil;
-import org.thoughtcrime.securesms.webrtc.CameraState;
 import org.webrtc.SurfaceViewRenderer;
 import org.whispersystems.libsignal.IdentityKey;
 
@@ -57,7 +57,7 @@ import org.whispersystems.libsignal.IdentityKey;
  * @author Moxie Marlinspike
  *
  */
-public class WebRtcCallScreen extends FrameLayout implements RecipientModifiedListener {
+public class WebRtcCallScreen extends FrameLayout implements RecipientForeverObserver {
 
   @SuppressWarnings("unused")
   private static final String TAG = WebRtcCallScreen.class.getSimpleName();
@@ -82,8 +82,8 @@ public class WebRtcCallScreen extends FrameLayout implements RecipientModifiedLi
 
   private WebRtcAnswerDeclineButton incomingCallButton;
 
-  private Recipient recipient;
-  private boolean   minimized;
+  private LiveRecipient recipient;
+  private boolean       minimized;
 
 
   public WebRtcCallScreen(Context context) {
@@ -118,19 +118,23 @@ public class WebRtcCallScreen extends FrameLayout implements RecipientModifiedLi
 
   public void setIncomingCall(Recipient personInfo) {
     setCard(personInfo, getContext().getString(R.string.CallScreen_Incoming_call));
-    endCallButton.setVisibility(View.INVISIBLE);
+    endCallButton.hide();
     incomingCallButton.setVisibility(View.VISIBLE);
     incomingCallButton.startRingingAnimation();
   }
 
   public void setUntrustedIdentity(Recipient personInfo, IdentityKey untrustedIdentity) {
-    String          name            = recipient.toShortString();
+    String          name            = recipient.get().toShortString();
     String          introduction    = String.format(getContext().getString(R.string.WebRtcCallScreen_new_safety_numbers), name, name);
     SpannableString spannableString = new SpannableString(introduction + " " + getContext().getString(R.string.WebRtcCallScreen_you_may_wish_to_verify_this_contact));
 
-    spannableString.setSpan(new VerifySpan(getContext(), personInfo.getAddress(), untrustedIdentity),
+    spannableString.setSpan(new VerifySpan(getContext(), personInfo.getId(), untrustedIdentity),
                             introduction.length()+1, spannableString.length(),
                             Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+    if (this.recipient != null) this.recipient.removeForeverObserver(this);
+    this.recipient = personInfo.live();
+    this.recipient.observeForever(this);
 
     setPersonInfo(personInfo);
 
@@ -141,7 +145,7 @@ public class WebRtcCallScreen extends FrameLayout implements RecipientModifiedLi
     this.untrustedIdentityExplanation.setText(spannableString);
     this.untrustedIdentityExplanation.setMovementMethod(LinkMovementMethod.getInstance());
 
-    this.endCallButton.setVisibility(View.INVISIBLE);
+    this.endCallButton.hide();
   }
 
   public void setIncomingCallActionListener(WebRtcAnswerDeclineButton.AnswerDeclineListener listener) {
@@ -203,6 +207,7 @@ public class WebRtcCallScreen extends FrameLayout implements RecipientModifiedLi
     if (this.localRenderLayout.isHidden() == cameraState.isEnabled()) {
       this.localRenderLayout.setHidden(!cameraState.isEnabled());
       this.localRenderLayout.requestLayout();
+      this.localRenderer.setVisibility(cameraState.isEnabled() ? VISIBLE : INVISIBLE);
     }
   }
 
@@ -253,7 +258,11 @@ public class WebRtcCallScreen extends FrameLayout implements RecipientModifiedLi
     this.remoteRenderLayout.setHidden(true);
     this.minimized = false;
 
-    this.remoteRenderLayout.setOnClickListener(v -> setMinimized(!minimized));
+    this.remoteRenderLayout.setOnClickListener(v -> {
+      if (!this.remoteRenderLayout.isHidden()) {
+        setMinimized(!minimized);
+      }
+    });
   }
 
   private void setConnected(SurfaceViewRenderer localRenderer,
@@ -289,9 +298,6 @@ public class WebRtcCallScreen extends FrameLayout implements RecipientModifiedLi
   }
 
   private void setPersonInfo(final @NonNull Recipient recipient) {
-    this.recipient = recipient;
-    this.recipient.addListener(this);
-
     GlideApp.with(getContext().getApplicationContext())
             .load(recipient.getContactPhoto())
             .fallback(recipient.getFallbackContactPhoto().asCallCard(getContext()))
@@ -302,14 +308,19 @@ public class WebRtcCallScreen extends FrameLayout implements RecipientModifiedLi
     this.name.setText(recipient.getName());
 
     if (recipient.getName() == null && !TextUtils.isEmpty(recipient.getProfileName())) {
-      this.phoneNumber.setText(recipient.getAddress().serialize() + " (~" + recipient.getProfileName() + ")");
+      this.phoneNumber.setText(recipient.requireAddress().serialize() + " (~" + recipient.getProfileName() + ")");
     } else {
-      this.phoneNumber.setText(recipient.getAddress().serialize());
+      this.phoneNumber.setText(recipient.requireAddress().serialize());
     }
   }
 
   private void setCard(Recipient recipient, String status) {
+    if (this.recipient != null) this.recipient.removeForeverObserver(this);
+    this.recipient = recipient.live();
+    this.recipient.observeForever(this);
+
     setPersonInfo(recipient);
+
     this.status.setText(status);
     this.untrustedIdentityContainer.setVisibility(View.GONE);
   }
@@ -336,17 +347,11 @@ public class WebRtcCallScreen extends FrameLayout implements RecipientModifiedLi
   }
 
   @Override
-  public void onModified(Recipient recipient) {
-    Util.runOnMain(() -> {
-      if (recipient == WebRtcCallScreen.this.recipient) {
-        setPersonInfo(recipient);
-      }
-    });
+  public void onRecipientChanged(@NonNull Recipient recipient) {
+    setPersonInfo(recipient);
   }
 
   public interface HangupButtonListener {
     void onClick();
   }
-
-
 }

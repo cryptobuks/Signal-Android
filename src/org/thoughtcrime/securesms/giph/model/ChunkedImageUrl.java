@@ -1,7 +1,7 @@
 package org.thoughtcrime.securesms.giph.model;
 
 
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import com.bumptech.glide.load.Key;
 
@@ -21,6 +21,7 @@ public class ChunkedImageUrl implements Key {
   }
 
   public ChunkedImageUrl(@NonNull String url, long size) {
+    if (url == null) throw new RuntimeException();
     this.url = url;
     this.size   = size;
   }
@@ -34,7 +35,7 @@ public class ChunkedImageUrl implements Key {
   }
 
   @Override
-  public void updateDiskCacheKey(MessageDigest messageDigest) {
+  public void updateDiskCacheKey(@NonNull MessageDigest messageDigest) {
     messageDigest.update(url.getBytes());
     messageDigest.update(Conversions.longToByteArray(size));
   }

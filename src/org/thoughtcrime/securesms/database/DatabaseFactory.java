@@ -17,11 +17,10 @@
 package org.thoughtcrime.securesms.database;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import net.sqlcipher.database.SQLiteDatabase;
 
-import org.thoughtcrime.securesms.DatabaseUpgradeActivity;
 import org.thoughtcrime.securesms.contacts.ContactsDatabase;
 import org.thoughtcrime.securesms.crypto.AttachmentSecret;
 import org.thoughtcrime.securesms.crypto.AttachmentSecretProvider;
@@ -31,6 +30,7 @@ import org.thoughtcrime.securesms.crypto.MasterSecret;
 import org.thoughtcrime.securesms.database.helpers.ClassicOpenHelper;
 import org.thoughtcrime.securesms.database.helpers.SQLCipherMigrationHelper;
 import org.thoughtcrime.securesms.database.helpers.SQLCipherOpenHelper;
+import org.thoughtcrime.securesms.migrations.LegacyMigrationJob;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 
 public class DatabaseFactory {
@@ -57,6 +57,8 @@ public class DatabaseFactory {
   private final SignedPreKeyDatabase  signedPreKeyDatabase;
   private final SessionDatabase       sessionDatabase;
   private final SearchDatabase        searchDatabase;
+  private final JobDatabase           jobDatabase;
+  private final StickerDatabase       stickerDatabase;
 
   public static DatabaseFactory getInstance(Context context) {
     synchronized (lock) {
@@ -135,6 +137,14 @@ public class DatabaseFactory {
     return getInstance(context).searchDatabase;
   }
 
+  public static JobDatabase getJobDatabase(Context context) {
+    return getInstance(context).jobDatabase;
+  }
+
+  public static StickerDatabase getStickerDatabase(Context context) {
+    return getInstance(context).stickerDatabase;
+  }
+
   public static SQLiteDatabase getBackupDatabase(Context context) {
     return getInstance(context).databaseHelper.getReadableDatabase();
   }
@@ -142,10 +152,7 @@ public class DatabaseFactory {
   public static void upgradeRestored(Context context, SQLiteDatabase database){
     getInstance(context).databaseHelper.onUpgrade(database, database.getVersion(), -1);
     getInstance(context).databaseHelper.markCurrent(database);
-  }
-
-  public void doThing(Context context) {
-    getInstance(context).databaseHelper.getReadableDatabase().execSQL("ALTER TABLE mms ADD COLUMN previews TEXT");
+    getInstance(context).mms.trimEntriesForExpiredMessages();
   }
 
   private DatabaseFactory(@NonNull Context context) {
@@ -172,21 +179,23 @@ public class DatabaseFactory {
     this.signedPreKeyDatabase = new SignedPreKeyDatabase(context, databaseHelper);
     this.sessionDatabase      = new SessionDatabase(context, databaseHelper);
     this.searchDatabase       = new SearchDatabase(context, databaseHelper);
+    this.jobDatabase          = new JobDatabase(context, databaseHelper);
+    this.stickerDatabase      = new StickerDatabase(context, databaseHelper, attachmentSecret);
   }
 
   public void onApplicationLevelUpgrade(@NonNull Context context, @NonNull MasterSecret masterSecret,
-                                        int fromVersion, DatabaseUpgradeActivity.DatabaseUpgradeListener listener)
+                                        int fromVersion, LegacyMigrationJob.DatabaseUpgradeListener listener)
   {
     databaseHelper.getWritableDatabase();
 
     ClassicOpenHelper legacyOpenHelper = null;
 
-    if (fromVersion < DatabaseUpgradeActivity.ASYMMETRIC_MASTER_SECRET_FIX_VERSION) {
+    if (fromVersion < LegacyMigrationJob.ASYMMETRIC_MASTER_SECRET_FIX_VERSION) {
       legacyOpenHelper = new ClassicOpenHelper(context);
       legacyOpenHelper.onApplicationLevelUpgrade(context, masterSecret, fromVersion, listener);
     }
 
-    if (fromVersion < DatabaseUpgradeActivity.SQLCIPHER && TextSecurePreferences.getNeedsSqlCipherMigration(context)) {
+    if (fromVersion < LegacyMigrationJob.SQLCIPHER && TextSecurePreferences.getNeedsSqlCipherMigration(context)) {
       if (legacyOpenHelper == null) {
         legacyOpenHelper = new ClassicOpenHelper(context);
       }
@@ -198,4 +207,7 @@ public class DatabaseFactory {
     }
   }
 
+  public void triggerDatabaseAccess() {
+    databaseHelper.getWritableDatabase();
+  }
 }

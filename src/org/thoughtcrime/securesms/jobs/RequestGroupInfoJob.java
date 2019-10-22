@@ -1,15 +1,15 @@
 package org.thoughtcrime.securesms.jobs;
 
-import android.content.Context;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import org.thoughtcrime.securesms.crypto.UnidentifiedAccessUtil;
 import org.thoughtcrime.securesms.database.Address;
-import org.thoughtcrime.securesms.dependencies.InjectableType;
-import org.thoughtcrime.securesms.jobmanager.JobParameters;
-import org.thoughtcrime.securesms.jobmanager.SafeData;
+import org.thoughtcrime.securesms.dependencies.ApplicationDependencies;
+import org.thoughtcrime.securesms.jobmanager.Data;
+import org.thoughtcrime.securesms.jobmanager.Job;
+import org.thoughtcrime.securesms.jobmanager.impl.NetworkConstraint;
+import org.thoughtcrime.securesms.recipients.RecipientId;
 import org.thoughtcrime.securesms.util.GroupUtil;
-import org.thoughtcrime.securesms.jobmanager.requirements.NetworkRequirement;
 import org.thoughtcrime.securesms.recipients.Recipient;
 import org.whispersystems.signalservice.api.SignalServiceMessageSender;
 import org.whispersystems.signalservice.api.crypto.UntrustedIdentityException;
@@ -20,56 +20,49 @@ import org.whispersystems.signalservice.api.push.SignalServiceAddress;
 import org.whispersystems.signalservice.api.push.exceptions.PushNetworkException;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
-import javax.inject.Inject;
+public class RequestGroupInfoJob extends BaseJob {
 
-import androidx.work.Data;
-import androidx.work.WorkerParameters;
-
-public class RequestGroupInfoJob extends ContextJob implements InjectableType {
+  public static final String KEY = "RequestGroupInfoJob";
 
   @SuppressWarnings("unused")
   private static final String TAG = RequestGroupInfoJob.class.getSimpleName();
 
-  private static final long serialVersionUID = 0L;
-
   private static final String KEY_SOURCE   = "source";
   private static final String KEY_GROUP_ID = "group_id";
 
-  @Inject transient SignalServiceMessageSender messageSender;
+  private RecipientId source;
+  private byte[]      groupId;
 
-  private String source;
-  private byte[] groupId;
+  public RequestGroupInfoJob(@NonNull RecipientId source, @NonNull byte[] groupId) {
+    this(new Job.Parameters.Builder()
+                           .addConstraint(NetworkConstraint.KEY)
+                           .setLifespan(TimeUnit.DAYS.toMillis(1))
+                           .setMaxAttempts(Parameters.UNLIMITED)
+                           .build(),
+         source,
+         groupId);
 
-  public RequestGroupInfoJob(@NonNull Context context, @NonNull WorkerParameters workerParameters) {
-    super(context, workerParameters);
   }
 
-  public RequestGroupInfoJob(@NonNull Context context, @NonNull String source, @NonNull byte[] groupId) {
-    super(context, JobParameters.newBuilder()
-                                .withNetworkRequirement()
-                                .withRetryCount(50)
-                                .create());
+  private RequestGroupInfoJob(@NonNull Job.Parameters parameters, @NonNull RecipientId source, @NonNull byte[] groupId) {
+    super(parameters);
 
     this.source  = source;
     this.groupId = groupId;
   }
 
   @Override
-  protected void initialize(@NonNull SafeData data) {
-    source = data.getString(KEY_SOURCE);
-    try {
-      groupId = GroupUtil.getDecodedId(data.getString(KEY_GROUP_ID));
-    } catch (IOException e) {
-      throw new AssertionError(e);
-    }
+  public @NonNull Data serialize() {
+    return new Data.Builder().putString(KEY_SOURCE, source.serialize())
+                             .putString(KEY_GROUP_ID, GroupUtil.getEncodedId(groupId, false))
+                             .build();
   }
 
   @Override
-  protected @NonNull Data serialize(@NonNull Data.Builder dataBuilder) {
-    return dataBuilder.putString(KEY_SOURCE, source)
-                      .putString(KEY_GROUP_ID, GroupUtil.getEncodedId(groupId, false))
-                      .build();
+  public @NonNull String getFactoryKey() {
+    return KEY;
   }
 
   @Override
@@ -83,18 +76,35 @@ public class RequestGroupInfoJob extends ContextJob implements InjectableType {
                                                                .withTimestamp(System.currentTimeMillis())
                                                                .build();
 
-    messageSender.sendMessage(new SignalServiceAddress(source),
-                              UnidentifiedAccessUtil.getAccessFor(context, Recipient.from(context, Address.fromExternal(context, source), false)),
+    SignalServiceMessageSender messageSender = ApplicationDependencies.getSignalServiceMessageSender();
+    Recipient                  recipient     = Recipient.resolved(source);
+
+    messageSender.sendMessage(new SignalServiceAddress(recipient.requireAddress().serialize()),
+                              UnidentifiedAccessUtil.getAccessFor(context, recipient),
                               message);
   }
 
   @Override
-  public boolean onShouldRetry(Exception e) {
+  public boolean onShouldRetry(@NonNull Exception e) {
     return e instanceof PushNetworkException;
   }
 
   @Override
   public void onCanceled() {
 
+  }
+
+  public static final class Factory implements Job.Factory<RequestGroupInfoJob> {
+
+    @Override
+    public @NonNull RequestGroupInfoJob create(@NonNull Parameters parameters, @NonNull Data data) {
+      try {
+        return new RequestGroupInfoJob(parameters,
+                                       RecipientId.from(data.getString(KEY_SOURCE)),
+                                       GroupUtil.getDecodedId(data.getString(KEY_GROUP_ID)));
+      } catch (IOException e) {
+        throw new AssertionError(e);
+      }
+    }
   }
 }

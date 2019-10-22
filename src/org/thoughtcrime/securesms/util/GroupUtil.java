@@ -1,21 +1,19 @@
 package org.thoughtcrime.securesms.util;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.WorkerThread;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.WorkerThread;
 
 import com.google.protobuf.ByteString;
 
 import org.thoughtcrime.securesms.R;
-import org.thoughtcrime.securesms.database.Address;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
 import org.thoughtcrime.securesms.database.GroupDatabase;
 import org.thoughtcrime.securesms.logging.Log;
 import org.thoughtcrime.securesms.mms.OutgoingGroupMediaMessage;
 import org.thoughtcrime.securesms.recipients.Recipient;
-import org.thoughtcrime.securesms.recipients.RecipientModifiedListener;
-import org.thoughtcrime.securesms.sms.MessageSender;
+import org.thoughtcrime.securesms.recipients.RecipientForeverObserver;
 import org.whispersystems.libsignal.util.guava.Optional;
 
 import java.io.IOException;
@@ -53,7 +51,7 @@ public class GroupUtil {
 
   @WorkerThread
   public static Optional<OutgoingGroupMediaMessage> createGroupLeaveMessage(@NonNull Context context, @NonNull Recipient groupRecipient) {
-    String        encodedGroupId = groupRecipient.getAddress().toGroupString();
+    String        encodedGroupId = groupRecipient.requireAddress().toGroupString();
     GroupDatabase groupDatabase  = DatabaseFactory.getGroupDatabase(context);
 
     if (!groupDatabase.isActive(encodedGroupId)) {
@@ -74,7 +72,7 @@ public class GroupUtil {
                                             .setType(GroupContext.Type.QUIT)
                                             .build();
 
-    return Optional.of(new OutgoingGroupMediaMessage(groupRecipient, groupContext, null, System.currentTimeMillis(), 0, null, Collections.emptyList(), Collections.emptyList()));
+    return Optional.of(new OutgoingGroupMediaMessage(groupRecipient, groupContext, null, System.currentTimeMillis(), 0, false, null, Collections.emptyList(), Collections.emptyList()));
   }
 
 
@@ -108,7 +106,7 @@ public class GroupUtil {
         this.members = new LinkedList<>();
 
         for (String member : groupContext.getMembersList()) {
-          this.members.add(Recipient.from(context, Address.fromExternal(context, member), true));
+          this.members.add(Recipient.external(context, member));
         }
       }
     }
@@ -138,10 +136,18 @@ public class GroupUtil {
       return description.toString();
     }
 
-    public void addListener(RecipientModifiedListener listener) {
+    public void addObserver(RecipientForeverObserver listener) {
       if (this.members != null) {
         for (Recipient member : this.members) {
-          member.addListener(listener);
+          member.live().observeForever(listener);
+        }
+      }
+    }
+
+    public void removeObserver(RecipientForeverObserver listener) {
+      if (this.members != null) {
+        for (Recipient member : this.members) {
+          member.live().removeForeverObserver(listener);
         }
       }
     }

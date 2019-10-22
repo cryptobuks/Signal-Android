@@ -17,29 +17,22 @@
 package org.thoughtcrime.securesms.scribbles;
 
 import android.content.Intent;
-import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.support.design.widget.TabLayout;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentActivity;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentStatePagerAdapter;
-import android.support.v4.content.ContextCompat;
-import android.support.v4.view.ViewPager;
-import android.text.Spannable;
-import android.text.SpannableString;
-import android.text.style.ImageSpan;
+import androidx.annotation.Nullable;
+import com.google.android.material.tabs.TabLayout;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentStatePagerAdapter;
+import androidx.viewpager.widget.ViewPager;
 import android.view.MenuItem;
 
-import org.thoughtcrime.securesms.BaseActionBarActivity;
 import org.thoughtcrime.securesms.R;
 
 public class StickerSelectActivity extends FragmentActivity implements StickerSelectFragment.StickerSelectionListener {
 
   private static final String TAG = StickerSelectActivity.class.getSimpleName();
-
-  public static final String EXTRA_STICKER_FILE = "extra_sticker_file";
 
   private static final int[] TAB_TITLES = new int[] {
       R.drawable.ic_tag_faces_white_24dp,
@@ -54,10 +47,10 @@ public class StickerSelectActivity extends FragmentActivity implements StickerSe
     super.onCreate(savedInstanceState);
     setContentView(R.layout.scribble_select_sticker_activity);
 
-    ViewPager viewPager = (ViewPager) findViewById(R.id.pager);
+    ViewPager viewPager = (ViewPager) findViewById(R.id.camera_sticker_pager);
     viewPager.setAdapter(new StickerPagerAdapter(getSupportFragmentManager(), this));
 
-    TabLayout tabLayout = (TabLayout) findViewById(R.id.tabs);
+    TabLayout tabLayout = (TabLayout) findViewById(R.id.camera_sticker_tabs);
     tabLayout.setupWithViewPager(viewPager);
 
     for (int i=0;i<tabLayout.getTabCount();i++) {
@@ -77,7 +70,7 @@ public class StickerSelectActivity extends FragmentActivity implements StickerSe
   @Override
   public void onStickerSelected(String name) {
     Intent intent = new Intent();
-    intent.putExtra(EXTRA_STICKER_FILE, name);
+    intent.setData(Uri.parse("file:///android_asset/" + name));
     setResult(RESULT_OK, intent);
     finish();
   }

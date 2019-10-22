@@ -1,7 +1,7 @@
 package org.thoughtcrime.securesms;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -49,7 +49,7 @@ class MessageDetailsRecipientAdapter extends BaseAdapter implements AbsListView.
   @Override
   public long getItemId(int position) {
     try {
-      return Conversions.byteArrayToLong(MessageDigest.getInstance("SHA1").digest(members.get(position).recipient.getAddress().serialize().getBytes()));
+      return Conversions.byteArrayToLong(MessageDigest.getInstance("SHA1").digest(members.get(position).recipient.requireAddress().serialize().getBytes()));
     } catch (NoSuchAlgorithmException e) {
       throw new AssertionError(e);
     }

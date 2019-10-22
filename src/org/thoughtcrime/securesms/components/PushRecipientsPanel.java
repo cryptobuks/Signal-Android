@@ -17,8 +17,8 @@
 package org.thoughtcrime.securesms.components;
 
 import android.content.Context;
-import android.os.Build;
-import android.support.annotation.NonNull;
+
+import androidx.annotation.NonNull;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
@@ -26,12 +26,14 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.RelativeLayout;
 
+import com.annimon.stream.Stream;
+
 import org.thoughtcrime.securesms.R;
 import org.thoughtcrime.securesms.contacts.RecipientsAdapter;
 import org.thoughtcrime.securesms.contacts.RecipientsEditor;
 import org.thoughtcrime.securesms.database.Address;
 import org.thoughtcrime.securesms.recipients.Recipient;
-import org.thoughtcrime.securesms.recipients.RecipientModifiedListener;
+import org.thoughtcrime.securesms.recipients.RecipientForeverObserver;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -43,7 +45,7 @@ import java.util.StringTokenizer;
  *
  * @author Moxie Marlinspike
  */
-public class PushRecipientsPanel extends RelativeLayout implements RecipientModifiedListener {
+public class PushRecipientsPanel extends RelativeLayout implements RecipientForeverObserver {
   private final String                         TAG = PushRecipientsPanel.class.getSimpleName();
   private       RecipientsPanelChangedListener panelChangeListener;
 
@@ -67,9 +69,15 @@ public class PushRecipientsPanel extends RelativeLayout implements RecipientModi
     initialize();
   }
 
+  @Override
+  protected void onDetachedFromWindow() {
+    super.onDetachedFromWindow();
+    Stream.of(getRecipients()).map(Recipient::live).forEach(r -> r.removeForeverObserver(this));
+  }
+
   public List<Recipient> getRecipients() {
     String rawText = recipientsText.getText().toString();
-    return getRecipientsFromString(getContext(), rawText, true);
+    return getRecipientsFromString(getContext(), rawText);
   }
 
   public void disable() {
@@ -86,9 +94,7 @@ public class PushRecipientsPanel extends RelativeLayout implements RecipientModi
     inflater.inflate(R.layout.push_recipients_panel, this, true);
 
     View imageButton = findViewById(R.id.contacts_button);
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH)
-      ((MarginLayoutParams) imageButton.getLayoutParams()).topMargin = 0;
+    ((MarginLayoutParams) imageButton.getLayoutParams()).topMargin = 0;
 
     panel = findViewById(R.id.recipients_panel);
     initRecipientsEditor();
@@ -100,9 +106,7 @@ public class PushRecipientsPanel extends RelativeLayout implements RecipientModi
 
     List<Recipient> recipients = getRecipients();
 
-    for (Recipient recipient : recipients) {
-      recipient.addListener(this);
-    }
+    Stream.of(recipients).map(Recipient::live).forEach(r -> r.observeForever(this));
 
     recipientsText.setAdapter(new RecipientsAdapter(this.getContext()));
     recipientsText.populate(recipients);
@@ -119,7 +123,7 @@ public class PushRecipientsPanel extends RelativeLayout implements RecipientModi
     });
   }
 
-  private @NonNull List<Recipient> getRecipientsFromString(Context context, @NonNull String rawText, boolean asynchronous) {
+  private @NonNull List<Recipient> getRecipientsFromString(Context context, @NonNull String rawText) {
     StringTokenizer tokenizer  = new StringTokenizer(rawText, ",");
     List<Recipient> recipients = new LinkedList<>();
 
@@ -127,8 +131,8 @@ public class PushRecipientsPanel extends RelativeLayout implements RecipientModi
       String token = tokenizer.nextToken().trim();
 
       if (!TextUtils.isEmpty(token)) {
-        if (hasBracketedNumber(token)) recipients.add(Recipient.from(context, Address.fromExternal(context, parseBracketedNumber(token)), asynchronous));
-        else                           recipients.add(Recipient.from(context, Address.fromExternal(context, token), asynchronous));
+        if (hasBracketedNumber(token)) recipients.add(Recipient.external(context, parseBracketedNumber(token)));
+        else                           recipients.add(Recipient.external(context, token));
       }
     }
 
@@ -151,7 +155,7 @@ public class PushRecipientsPanel extends RelativeLayout implements RecipientModi
   }
 
   @Override
-  public void onModified(Recipient recipient) {
+  public void onRecipientChanged(@NonNull Recipient recipient) {
     recipientsText.populate(getRecipients());
   }
 

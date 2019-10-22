@@ -1,21 +1,21 @@
 package org.thoughtcrime.securesms.jobs;
 
 
-import android.content.Context;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.text.TextUtils;
 
 import org.thoughtcrime.securesms.ApplicationContext;
 import org.thoughtcrime.securesms.crypto.UnidentifiedAccessUtil;
-import org.thoughtcrime.securesms.database.Address;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
 import org.thoughtcrime.securesms.database.RecipientDatabase;
 import org.thoughtcrime.securesms.database.RecipientDatabase.UnidentifiedAccessMode;
-import org.thoughtcrime.securesms.dependencies.InjectableType;
-import org.thoughtcrime.securesms.jobmanager.JobParameters;
-import org.thoughtcrime.securesms.jobmanager.SafeData;
+import org.thoughtcrime.securesms.dependencies.ApplicationDependencies;
+import org.thoughtcrime.securesms.jobmanager.Data;
+import org.thoughtcrime.securesms.jobmanager.Job;
+import org.thoughtcrime.securesms.jobmanager.impl.NetworkConstraint;
 import org.thoughtcrime.securesms.logging.Log;
 import org.thoughtcrime.securesms.recipients.Recipient;
+import org.thoughtcrime.securesms.recipients.RecipientId;
 import org.thoughtcrime.securesms.service.IncomingMessageObserver;
 import org.thoughtcrime.securesms.util.Base64;
 import org.thoughtcrime.securesms.util.IdentityUtil;
@@ -25,77 +25,73 @@ import org.whispersystems.libsignal.InvalidKeyException;
 import org.whispersystems.libsignal.util.guava.Optional;
 import org.whispersystems.signalservice.api.SignalServiceMessagePipe;
 import org.whispersystems.signalservice.api.SignalServiceMessageReceiver;
+import org.whispersystems.signalservice.api.crypto.InvalidCiphertextException;
 import org.whispersystems.signalservice.api.crypto.ProfileCipher;
 import org.whispersystems.signalservice.api.crypto.UnidentifiedAccess;
 import org.whispersystems.signalservice.api.crypto.UnidentifiedAccessPair;
 import org.whispersystems.signalservice.api.profiles.SignalServiceProfile;
 import org.whispersystems.signalservice.api.push.SignalServiceAddress;
 import org.whispersystems.signalservice.api.push.exceptions.NonSuccessfulResponseCodeException;
-import org.whispersystems.signalservice.api.util.InvalidNumberException;
 
 import java.io.IOException;
 import java.util.List;
 
-import javax.inject.Inject;
+public class RetrieveProfileJob extends BaseJob {
 
-import androidx.work.Data;
-import androidx.work.WorkerParameters;
-
-public class RetrieveProfileJob extends ContextJob implements InjectableType {
+  public static final String KEY = "RetrieveProfileJob";
 
   private static final String TAG = RetrieveProfileJob.class.getSimpleName();
 
-  private static final String KEY_ADDRESS = "address";
+  private static final String KEY_RECIPIENT = "recipient";
 
-  @Inject transient SignalServiceMessageReceiver receiver;
+  private final Recipient recipient;
 
-  private Recipient recipient;
-
-  public RetrieveProfileJob(@NonNull Context context, @NonNull WorkerParameters workerParameters) {
-    super(context, workerParameters);
+  public RetrieveProfileJob(@NonNull Recipient recipient) {
+    this(new Job.Parameters.Builder()
+                           .addConstraint(NetworkConstraint.KEY)
+                           .setMaxAttempts(3)
+                           .build(),
+         recipient);
   }
 
-  public RetrieveProfileJob(Context context, Recipient recipient) {
-    super(context, JobParameters.newBuilder()
-                                .withNetworkRequirement()
-                                .withRetryCount(3)
-                                .create());
-
+  private RetrieveProfileJob(@NonNull Job.Parameters parameters, @NonNull Recipient recipient) {
+    super(parameters);
     this.recipient = recipient;
   }
 
   @Override
-  protected void initialize(@NonNull SafeData data) {
-    recipient = Recipient.from(context, Address.fromSerialized(data.getString(KEY_ADDRESS)), true);
+  public @NonNull Data serialize() {
+    return new Data.Builder().putString(KEY_RECIPIENT, recipient.getId().serialize()).build();
   }
 
   @Override
-  protected @NonNull Data serialize(@NonNull Data.Builder dataBuilder) {
-    return dataBuilder.putString(KEY_ADDRESS, recipient.getAddress().serialize()).build();
+  public @NonNull String getFactoryKey() {
+    return KEY;
   }
 
   @Override
-  public void onRun() throws IOException, InvalidKeyException {
-    try {
-      if (recipient.isGroupRecipient()) handleGroupRecipient(recipient);
-      else                              handleIndividualRecipient(recipient);
-    } catch (InvalidNumberException e) {
-      Log.w(TAG, e);
-    }
+  public void onRun() throws IOException {
+    Recipient resolved = recipient.resolve();
+
+    if (resolved.isGroup()) handleGroupRecipient(resolved);
+    else                    handleIndividualRecipient(resolved);
   }
 
   @Override
-  public boolean onShouldRetry(Exception e) {
+  public boolean onShouldRetry(@NonNull Exception e) {
     return false;
   }
 
   @Override
   public void onCanceled() {}
 
-  private void handleIndividualRecipient(Recipient recipient)
-      throws IOException, InvalidKeyException, InvalidNumberException
-  {
-    String                       number             = recipient.getAddress().toPhoneString();
+  private void handleIndividualRecipient(Recipient recipient) throws IOException {
+     if (recipient.requireAddress().isPhone()) handlePhoneNumberRecipient(recipient);
+     else                                  Log.w(TAG, "Skipping fetching profile of non-phone recipient");
+  }
+
+  private void handlePhoneNumberRecipient(Recipient recipient) throws IOException {
+    String                       number             = recipient.requireAddress().toPhoneString();
     Optional<UnidentifiedAccess> unidentifiedAccess = getUnidentifiedAccess(recipient);
 
     SignalServiceProfile profile;
@@ -116,10 +112,8 @@ public class RetrieveProfileJob extends ContextJob implements InjectableType {
     setUnidentifiedAccessMode(recipient, profile.getUnidentifiedAccess(), profile.isUnrestrictedUnidentifiedAccess());
   }
 
-  private void handleGroupRecipient(Recipient group)
-      throws IOException, InvalidKeyException, InvalidNumberException
-  {
-    List<Recipient> recipients = DatabaseFactory.getGroupDatabase(context).getGroupMembers(group.getAddress().toGroupString(), false);
+  private void handleGroupRecipient(Recipient group) throws IOException {
+    List<Recipient> recipients = DatabaseFactory.getGroupDatabase(context).getGroupMembers(group.requireAddress().toGroupString(), false);
 
     for (Recipient recipient : recipients) {
       handleIndividualRecipient(recipient);
@@ -142,6 +136,7 @@ public class RetrieveProfileJob extends ContextJob implements InjectableType {
       }
     }
 
+    SignalServiceMessageReceiver receiver = ApplicationDependencies.getSignalServiceMessageReceiver();
     return receiver.retrieveProfile(new SignalServiceAddress(number), unidentifiedAccess);
   }
 
@@ -155,14 +150,14 @@ public class RetrieveProfileJob extends ContextJob implements InjectableType {
       IdentityKey identityKey = new IdentityKey(Base64.decode(identityKeyValue), 0);
 
       if (!DatabaseFactory.getIdentityDatabase(context)
-                          .getIdentity(recipient.getAddress())
+                          .getIdentity(recipient.getId())
                           .isPresent())
       {
         Log.w(TAG, "Still first use...");
         return;
       }
 
-      IdentityUtil.saveIdentity(context, recipient.getAddress().toPhoneString(), identityKey);
+      IdentityUtil.saveIdentity(context, recipient.requireAddress().toPhoneString(), identityKey);
     } catch (InvalidKeyException | IOException e) {
       Log.w(TAG, e);
     }
@@ -173,11 +168,15 @@ public class RetrieveProfileJob extends ContextJob implements InjectableType {
     byte[]            profileKey        = recipient.getProfileKey();
 
     if (unrestrictedUnidentifiedAccess && unidentifiedAccessVerifier != null) {
-      Log.i(TAG, "Marking recipient UD status as unrestricted.");
-      recipientDatabase.setUnidentifiedAccessMode(recipient, UnidentifiedAccessMode.UNRESTRICTED);
+      if (recipient.getUnidentifiedAccessMode() != UnidentifiedAccessMode.UNRESTRICTED) {
+        Log.i(TAG, "Marking recipient UD status as unrestricted.");
+        recipientDatabase.setUnidentifiedAccessMode(recipient.getId(), UnidentifiedAccessMode.UNRESTRICTED);
+      }
     } else if (profileKey == null || unidentifiedAccessVerifier == null) {
-      Log.i(TAG, "Marking recipient UD status as disabled.");
-      recipientDatabase.setUnidentifiedAccessMode(recipient, UnidentifiedAccessMode.DISABLED);
+      if (recipient.getUnidentifiedAccessMode() != UnidentifiedAccessMode.DISABLED) {
+        Log.i(TAG, "Marking recipient UD status as disabled.");
+        recipientDatabase.setUnidentifiedAccessMode(recipient.getId(), UnidentifiedAccessMode.DISABLED);
+      }
     } else {
       ProfileCipher profileCipher = new ProfileCipher(profileKey);
       boolean verifiedUnidentifiedAccess;
@@ -190,8 +189,11 @@ public class RetrieveProfileJob extends ContextJob implements InjectableType {
       }
 
       UnidentifiedAccessMode mode = verifiedUnidentifiedAccess ? UnidentifiedAccessMode.ENABLED : UnidentifiedAccessMode.DISABLED;
-      Log.i(TAG, "Marking recipient UD status as " + mode.name() + " after verification.");
-      recipientDatabase.setUnidentifiedAccessMode(recipient, mode);
+
+      if (recipient.getUnidentifiedAccessMode() != mode) {
+        Log.i(TAG, "Marking recipient UD status as " + mode.name() + " after verification.");
+        recipientDatabase.setUnidentifiedAccessMode(recipient.getId(), mode);
+      }
     }
   }
 
@@ -208,9 +210,9 @@ public class RetrieveProfileJob extends ContextJob implements InjectableType {
       }
 
       if (!Util.equals(plaintextProfileName, recipient.getProfileName())) {
-        DatabaseFactory.getRecipientDatabase(context).setProfileName(recipient, plaintextProfileName);
+        DatabaseFactory.getRecipientDatabase(context).setProfileName(recipient.getId(), plaintextProfileName);
       }
-    } catch (ProfileCipher.InvalidCiphertextException | IOException e) {
+    } catch (InvalidCiphertextException | IOException e) {
       Log.w(TAG, e);
     }
   }
@@ -219,9 +221,7 @@ public class RetrieveProfileJob extends ContextJob implements InjectableType {
     if (recipient.getProfileKey() == null) return;
 
     if (!Util.equals(profileAvatar, recipient.getProfileAvatar())) {
-      ApplicationContext.getInstance(context)
-                        .getJobManager()
-                        .add(new RetrieveProfileAvatarJob(context, recipient, profileAvatar));
+      ApplicationDependencies.getJobManager().add(new RetrieveProfileAvatarJob(recipient, profileAvatar));
     }
   }
 
@@ -233,5 +233,13 @@ public class RetrieveProfileJob extends ContextJob implements InjectableType {
     }
 
     return Optional.absent();
+  }
+
+  public static final class Factory implements Job.Factory<RetrieveProfileJob> {
+
+    @Override
+    public @NonNull RetrieveProfileJob create(@NonNull Parameters parameters, @NonNull Data data) {
+      return new RetrieveProfileJob(parameters, Recipient.resolved(RecipientId.from(data.getString(KEY_RECIPIENT))));
+    }
   }
 }

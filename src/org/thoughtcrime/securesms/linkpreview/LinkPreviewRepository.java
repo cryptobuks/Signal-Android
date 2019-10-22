@@ -3,28 +3,38 @@ package org.thoughtcrime.securesms.linkpreview;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.text.Html;
 import android.text.TextUtils;
 
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.load.resource.bitmap.DownsampleStrategy;
 import com.bumptech.glide.request.FutureTarget;
 
 import org.thoughtcrime.securesms.attachments.Attachment;
 import org.thoughtcrime.securesms.attachments.UriAttachment;
+import org.thoughtcrime.securesms.blurhash.BlurHash;
 import org.thoughtcrime.securesms.database.AttachmentDatabase;
+import org.thoughtcrime.securesms.dependencies.ApplicationDependencies;
 import org.thoughtcrime.securesms.giph.model.ChunkedImageUrl;
 import org.thoughtcrime.securesms.logging.Log;
 import org.thoughtcrime.securesms.mms.GlideApp;
 import org.thoughtcrime.securesms.net.CallRequestController;
 import org.thoughtcrime.securesms.net.CompositeRequestController;
+import org.thoughtcrime.securesms.net.ContentProxySafetyInterceptor;
 import org.thoughtcrime.securesms.net.ContentProxySelector;
 import org.thoughtcrime.securesms.net.RequestController;
-import org.thoughtcrime.securesms.providers.MemoryBlobProvider;
+import org.thoughtcrime.securesms.providers.BlobProvider;
+import org.thoughtcrime.securesms.stickers.StickerRemoteUri;
+import org.thoughtcrime.securesms.stickers.StickerUrl;
+import org.thoughtcrime.securesms.util.Hex;
 import org.thoughtcrime.securesms.util.MediaUtil;
 import org.thoughtcrime.securesms.util.concurrent.SignalExecutors;
+import org.whispersystems.libsignal.InvalidMessageException;
+import org.whispersystems.libsignal.util.Pair;
 import org.whispersystems.libsignal.util.guava.Optional;
+import org.whispersystems.signalservice.api.SignalServiceMessageReceiver;
+import org.whispersystems.signalservice.api.messages.SignalServiceStickerManifest;
+import org.whispersystems.signalservice.api.messages.SignalServiceStickerManifest.StickerInfo;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -50,6 +60,7 @@ public class LinkPreviewRepository {
   public LinkPreviewRepository() {
     this.client = new OkHttpClient.Builder()
                                   .proxySelector(new ContentProxySelector())
+                                  .addNetworkInterceptor(new ContentProxySafetyInterceptor())
                                   .cache(null)
                                   .build();
   }
@@ -63,27 +74,33 @@ public class LinkPreviewRepository {
       return compositeController;
     }
 
-    RequestController metadataController = fetchMetadata(url, metadata -> {
-      if (metadata.isEmpty()) {
-        callback.onComplete(Optional.absent());
-        return;
-      }
+    RequestController metadataController;
 
-      if (!metadata.getImageUrl().isPresent()) {
-        callback.onComplete(Optional.of(new LinkPreview(url, metadata.getTitle().get(), Optional.absent())));
-        return;
-      }
-
-      RequestController imageController = fetchThumbnail(context, metadata.getImageUrl().get(), attachment -> {
-        if (!metadata.getTitle().isPresent() && !attachment.isPresent()) {
+    if (StickerUrl.isValidShareLink(url)) {
+      metadataController = fetchStickerPackLinkPreview(context, url, callback);
+    } else {
+      metadataController = fetchMetadata(url, metadata -> {
+        if (metadata.isEmpty()) {
           callback.onComplete(Optional.absent());
-        } else {
-          callback.onComplete(Optional.of(new LinkPreview(url, metadata.getTitle().or(""), attachment)));
+          return;
         }
-      });
 
-      compositeController.addController(imageController);
-    });
+        if (!metadata.getImageUrl().isPresent()) {
+          callback.onComplete(Optional.of(new LinkPreview(url, metadata.getTitle().get(), Optional.absent())));
+          return;
+        }
+
+        RequestController imageController = fetchThumbnail(context, metadata.getImageUrl().get(), attachment -> {
+          if (!metadata.getTitle().isPresent() && !attachment.isPresent()) {
+            callback.onComplete(Optional.absent());
+          } else {
+            callback.onComplete(Optional.of(new LinkPreview(url, metadata.getTitle().or(""), attachment)));
+          }
+        });
+
+        compositeController.addController(imageController);
+      });
+    }
 
     compositeController.addController(metadataController);
     return compositeController;
@@ -94,13 +111,13 @@ public class LinkPreviewRepository {
 
     call.enqueue(new okhttp3.Callback() {
       @Override
-      public void onFailure(Call call, IOException e) {
+      public void onFailure(@NonNull Call call, @NonNull IOException e) {
         Log.w(TAG, "Request failed.", e);
         callback.onComplete(Metadata.empty());
       }
 
       @Override
-      public void onResponse(Call call, Response response) throws IOException {
+      public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
         if (!response.isSuccessful()) {
           Log.w(TAG, "Non-successful response. Code: " + response.code());
           callback.onComplete(Metadata.empty());
@@ -132,12 +149,12 @@ public class LinkPreviewRepository {
                                                               .load(new ChunkedImageUrl(imageUrl))
                                                               .skipMemoryCache(true)
                                                               .diskCacheStrategy(DiskCacheStrategy.NONE)
-                                                              .downsample(DownsampleStrategy.AT_MOST)
+                                                              .centerInside()
                                                               .submit(1024, 1024);
 
     RequestController controller = () -> bitmapFuture.cancel(false);
 
-    SignalExecutors.IO.execute(() -> {
+    SignalExecutors.UNBOUNDED.execute(() -> {
       try {
         Bitmap                bitmap = bitmapFuture.get();
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -145,7 +162,7 @@ public class LinkPreviewRepository {
         bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
 
         byte[]               bytes     = baos.toByteArray();
-        Uri                  uri       = MemoryBlobProvider.getInstance().createUri(bytes);
+        Uri                  uri       = BlobProvider.getInstance().forData(bytes).createForSingleSessionInMemory();
         Optional<Attachment> thumbnail = Optional.of(new UriAttachment(uri,
                                                                        uri,
                                                                        MediaUtil.IMAGE_JPEG,
@@ -157,6 +174,9 @@ public class LinkPreviewRepository {
                                                                        null,
                                                                        false,
                                                                        false,
+                                                                       null,
+                                                                       null,
+                                                                       null,
                                                                        null));
 
         callback.onComplete(thumbnail);
@@ -172,7 +192,7 @@ public class LinkPreviewRepository {
   }
 
   private @NonNull Optional<String> getProperty(@NonNull String searchText, @NonNull String property) {
-    Pattern pattern = Pattern.compile("<\\s*meta\\s+property\\s*=\\s*\"\\s*og:" + property + "\\s*\"\\s+content\\s*=\\s*\"(.*?)\"\\s*/?\\s*>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    Pattern pattern = Pattern.compile("<\\s*meta\\s+property\\s*=\\s*\"\\s*og:" + property + "\\s*\"\\s+[^>]*content\\s*=\\s*\"(.*?)\"[^>]*/?\\s*>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     Matcher matcher = pattern.matcher(searchText);
 
     if (matcher.find()) {
@@ -181,6 +201,69 @@ public class LinkPreviewRepository {
     }
 
     return Optional.absent();
+  }
+
+  private RequestController fetchStickerPackLinkPreview(@NonNull Context context,
+                                                        @NonNull String packUrl,
+                                                        @NonNull Callback<Optional<LinkPreview>> callback)
+  {
+    SignalExecutors.UNBOUNDED.execute(() -> {
+      try {
+        Pair<String, String> stickerParams = StickerUrl.parseShareLink(packUrl).or(new Pair<>("", ""));
+        String               packIdString  = stickerParams.first();
+        String               packKeyString = stickerParams.second();
+        byte[]               packIdBytes   = Hex.fromStringCondensed(packIdString);
+        byte[]               packKeyBytes  = Hex.fromStringCondensed(packKeyString);
+
+        SignalServiceMessageReceiver receiver = ApplicationDependencies.getSignalServiceMessageReceiver();
+        SignalServiceStickerManifest manifest = receiver.retrieveStickerManifest(packIdBytes, packKeyBytes);
+
+        String                title        = manifest.getTitle().or(manifest.getAuthor()).or("");
+        Optional<StickerInfo> firstSticker = Optional.fromNullable(manifest.getStickers().size() > 0 ? manifest.getStickers().get(0) : null);
+        Optional<StickerInfo> cover        = manifest.getCover().or(firstSticker);
+
+        if (cover.isPresent()) {
+          Bitmap bitmap = GlideApp.with(context).asBitmap()
+                                                .load(new StickerRemoteUri(packIdString, packKeyString, cover.get().getId()))
+                                                .skipMemoryCache(true)
+                                                .diskCacheStrategy(DiskCacheStrategy.NONE)
+                                                .centerInside()
+                                                .submit(512, 512)
+                                                .get();
+
+          ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+          bitmap.compress(Bitmap.CompressFormat.WEBP, 80, baos);
+
+          byte[]               bytes     = baos.toByteArray();
+          Uri                  uri       = BlobProvider.getInstance().forData(bytes).createForSingleSessionInMemory();
+          Optional<Attachment> thumbnail = Optional.of(new UriAttachment(uri,
+                                                       uri,
+                                                       MediaUtil.IMAGE_WEBP,
+                                                       AttachmentDatabase.TRANSFER_PROGRESS_STARTED,
+                                                       bytes.length,
+                                                       bitmap.getWidth(),
+                                                       bitmap.getHeight(),
+                                                       null,
+                                                       null,
+                                                       false,
+                                                       false,
+                                                       null,
+                                                       null,
+                                                       null,
+                                                       null));
+
+          callback.onComplete(Optional.of(new LinkPreview(packUrl, title, thumbnail)));
+        } else {
+          callback.onComplete(Optional.absent());
+        }
+      } catch (IOException | InvalidMessageException | ExecutionException | InterruptedException e) {
+        Log.w(TAG, "Failed to fetch sticker pack link preview.");
+        callback.onComplete(Optional.absent());
+      }
+    });
+
+    return () -> Log.i(TAG, "Cancelled sticker pack link preview fetch -- no effect.");
   }
 
   private static class Metadata {

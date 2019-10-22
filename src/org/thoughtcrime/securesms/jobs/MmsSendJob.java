@@ -1,14 +1,14 @@
 package org.thoughtcrime.securesms.jobs;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
 import android.text.TextUtils;
-
-import org.thoughtcrime.securesms.jobmanager.SafeData;
-import org.thoughtcrime.securesms.logging.Log;
 import android.webkit.MimeTypeMap;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.WorkerThread;
+
 import com.android.mms.dom.smil.parser.SmilXmlSerializer;
+import com.annimon.stream.Stream;
 import com.google.android.mms.ContentType;
 import com.google.android.mms.InvalidHeaderValueException;
 import com.google.android.mms.pdu_alt.CharacterSets;
@@ -23,12 +23,17 @@ import com.google.android.mms.smil.SmilHelper;
 import com.klinker.android.send_message.Utils;
 
 import org.thoughtcrime.securesms.attachments.Attachment;
+import org.thoughtcrime.securesms.attachments.DatabaseAttachment;
 import org.thoughtcrime.securesms.database.Address;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
 import org.thoughtcrime.securesms.database.MmsDatabase;
 import org.thoughtcrime.securesms.database.NoSuchMessageException;
 import org.thoughtcrime.securesms.database.ThreadDatabase;
-import org.thoughtcrime.securesms.jobmanager.JobParameters;
+import org.thoughtcrime.securesms.jobmanager.Data;
+import org.thoughtcrime.securesms.jobmanager.Job;
+import org.thoughtcrime.securesms.jobmanager.JobManager;
+import org.thoughtcrime.securesms.jobmanager.impl.NetworkConstraint;
+import org.thoughtcrime.securesms.logging.Log;
 import org.thoughtcrime.securesms.mms.CompatMmsConnection;
 import org.thoughtcrime.securesms.mms.MediaConstraints;
 import org.thoughtcrime.securesms.mms.MmsException;
@@ -40,7 +45,7 @@ import org.thoughtcrime.securesms.recipients.Recipient;
 import org.thoughtcrime.securesms.transport.InsecureFallbackApprovalException;
 import org.thoughtcrime.securesms.transport.UndeliverableMessageException;
 import org.thoughtcrime.securesms.util.Hex;
-import org.thoughtcrime.securesms.util.NumberUtil;
+import org.thoughtcrime.securesms.phonenumbers.NumberUtil;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.thoughtcrime.securesms.util.Util;
 
@@ -49,41 +54,61 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import androidx.work.Data;
-import androidx.work.WorkerParameters;
+public final class MmsSendJob extends SendJob {
 
-public class MmsSendJob extends SendJob {
-
-  private static final long serialVersionUID = 0L;
+  public static final String KEY = "MmsSendJobV2";
 
   private static final String TAG = MmsSendJob.class.getSimpleName();
 
   private static final String KEY_MESSAGE_ID = "message_id";
 
-  private long messageId;
+  private final long messageId;
 
-  public MmsSendJob(@NonNull Context context, @NonNull WorkerParameters workerParameters) {
-    super(context, workerParameters);
+  private MmsSendJob(long messageId) {
+    this(new Job.Parameters.Builder()
+                           .setQueue("mms-operation")
+                           .addConstraint(NetworkConstraint.KEY)
+                           .setMaxAttempts(15)
+                           .build(),
+         messageId);
   }
 
-  public MmsSendJob(Context context, long messageId) {
-    super(context, JobParameters.newBuilder()
-                                .withGroupId("mms-operation")
-                                .withNetworkRequirement()
-                                .withRetryCount(15)
-                                .create());
+  /** Enqueues compression jobs for attachments and finally the MMS send job. */
+  @WorkerThread
+  public static void enqueue(@NonNull Context context, @NonNull JobManager jobManager, long messageId) {
+    MmsDatabase          database = DatabaseFactory.getMmsDatabase(context);
+    OutgoingMediaMessage message;
 
+    try {
+      message = database.getOutgoingMessage(messageId);
+    } catch (MmsException | NoSuchMessageException e) {
+      throw new AssertionError(e);
+    }
+
+    List<Job> compressionJobs = Stream.of(message.getAttachments())
+                                      .map(a -> (Job) AttachmentCompressionJob.fromAttachment((DatabaseAttachment) a, true, message.getSubscriptionId()))
+                                      .toList();
+
+    MmsSendJob sendJob = new MmsSendJob(messageId);
+
+    jobManager.startChain(compressionJobs)
+              .then(sendJob)
+              .enqueue();
+  }
+
+  private MmsSendJob(@NonNull Job.Parameters parameters, long messageId) {
+    super(parameters);
     this.messageId = messageId;
   }
 
   @Override
-  protected void initialize(@NonNull SafeData data) {
-    messageId = data.getLong(KEY_MESSAGE_ID);
+  public @NonNull Data serialize() {
+    return new Data.Builder().putLong(KEY_MESSAGE_ID, messageId).build();
   }
 
   @Override
-  protected @NonNull Data serialize(@NonNull Data.Builder dataBuilder) {
-    return dataBuilder.putLong(KEY_MESSAGE_ID, messageId).build();
+  public @NonNull String getFactoryKey() {
+    return KEY;
   }
 
   @Override
@@ -123,7 +148,7 @@ public class MmsSendJob extends SendJob {
   }
 
   @Override
-  public boolean onShouldRetry(Exception exception) {
+  public boolean onShouldRetry(@NonNull Exception exception) {
     return false;
   }
 
@@ -196,9 +221,9 @@ public class MmsSendJob extends SendJob {
   {
     SendReq          req               = new SendReq();
     String           lineNumber        = getMyNumber(context);
-    Address          destination       = message.getRecipient().getAddress();
+    Address          destination       = message.getRecipient().requireAddress();
     MediaConstraints mediaConstraints  = MediaConstraints.getMmsMediaConstraints(message.getSubscriptionId());
-    List<Attachment> scaledAttachments = scaleAndStripExifFromAttachments(mediaConstraints, message.getAttachments());
+    List<Attachment> scaledAttachments = message.getAttachments();
 
     if (!TextUtils.isEmpty(lineNumber)) {
       req.setFrom(new EncodedStringValue(lineNumber));
@@ -211,9 +236,9 @@ public class MmsSendJob extends SendJob {
 
       for (Recipient member : members) {
         if (message.getDistributionType() == ThreadDatabase.DistributionTypes.BROADCAST) {
-          req.addBcc(new EncodedStringValue(member.getAddress().serialize()));
+          req.addBcc(new EncodedStringValue(member.requireAddress().serialize()));
         } else {
-          req.addTo(new EncodedStringValue(member.getAddress().serialize()));
+          req.addTo(new EncodedStringValue(member.requireAddress().serialize()));
         }
       }
     } else {
@@ -316,6 +341,13 @@ public class MmsSendJob extends SendJob {
       return Utils.getMyPhoneNumber(context);
     } catch (SecurityException e) {
       throw new UndeliverableMessageException(e);
+    }
+  }
+
+  public static class Factory implements Job.Factory<MmsSendJob> {
+    @Override
+    public @NonNull MmsSendJob create(@NonNull Parameters parameters, @NonNull Data data) {
+      return new MmsSendJob(parameters, data.getLong(KEY_MESSAGE_ID));
     }
   }
 }

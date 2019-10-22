@@ -11,8 +11,8 @@ import android.os.Bundle;
 import android.os.Parcel;
 import android.service.chooser.ChooserTarget;
 import android.service.chooser.ChooserTargetService;
-import android.support.annotation.NonNull;
-import android.support.annotation.RequiresApi;
+import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 
 import org.thoughtcrime.securesms.ShareActivity;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
@@ -39,14 +39,14 @@ public class DirectShareService extends ChooserTargetService {
     List<ChooserTarget> results        = new LinkedList<>();
     ComponentName       componentName  = new ComponentName(this, ShareActivity.class);
     ThreadDatabase      threadDatabase = DatabaseFactory.getThreadDatabase(this);
-    Cursor              cursor         = threadDatabase.getDirectShareList();
+    Cursor              cursor         = threadDatabase.getRecentConversationList(10, false);
 
     try {
       ThreadDatabase.Reader reader = threadDatabase.readerFor(cursor);
       ThreadRecord record;
 
-      while ((record = reader.getNext()) != null && results.size() < 10) {
-          Recipient recipient = Recipient.from(this, record.getRecipient().getAddress(), false);
+      while ((record = reader.getNext()) != null) {
+          Recipient recipient = Recipient.resolved(record.getRecipient().getId());
           String    name      = recipient.toShortString();
 
           Bitmap avatar;
@@ -68,18 +68,13 @@ public class DirectShareService extends ChooserTargetService {
             avatar = getFallbackDrawable(recipient);
           }
 
-          Parcel parcel = Parcel.obtain();
-          parcel.writeParcelable(recipient.getAddress(), 0);
-
           Bundle bundle = new Bundle();
           bundle.putLong(ShareActivity.EXTRA_THREAD_ID, record.getThreadId());
-          bundle.putByteArray(ShareActivity.EXTRA_ADDRESS_MARSHALLED, parcel.marshall());
+          bundle.putString(ShareActivity.EXTRA_RECIPIENT_ID, recipient.getId().serialize());
           bundle.putInt(ShareActivity.EXTRA_DISTRIBUTION_TYPE, record.getDistributionType());
           bundle.setClassLoader(getClassLoader());
 
           results.add(new ChooserTarget(name, Icon.createWithBitmap(avatar), 1.0f, componentName, bundle));
-          parcel.recycle();
-
       }
 
       return results;

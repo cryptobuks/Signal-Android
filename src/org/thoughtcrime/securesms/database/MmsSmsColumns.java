@@ -9,7 +9,7 @@ public interface MmsSmsColumns {
   public static final String THREAD_ID                = "thread_id";
   public static final String READ                     = "read";
   public static final String BODY                     = "body";
-  public static final String ADDRESS                  = "address";
+  public static final String RECIPIENT_ID             = "address";
   public static final String ADDRESS_DEVICE_ID        = "address_device_id";
   public static final String DELIVERY_RECEIPT_COUNT   = "delivery_receipt_count";
   public static final String READ_RECEIPT_COUNT       = "read_receipt_count";
@@ -31,6 +31,8 @@ public interface MmsSmsColumns {
     protected static final long OUTGOING_CALL_TYPE                 = 2;
     protected static final long MISSED_CALL_TYPE                   = 3;
     protected static final long JOINED_TYPE                        = 4;
+    protected static final long UNSUPPORTED_MESSAGE_TYPE           = 5;
+    protected static final long INVALID_MESSAGE_TYPE               = 6;
 
     protected static final long BASE_INBOX_TYPE                    = 20;
     protected static final long BASE_OUTBOX_TYPE                   = 21;
@@ -140,6 +142,14 @@ public interface MmsSmsColumns {
 
     public static boolean isJoinedType(long type) {
       return (type & BASE_TYPE_MASK) == JOINED_TYPE;
+    }
+
+    public static boolean isUnsupportedMessageType(long type) {
+      return (type & BASE_TYPE_MASK) == UNSUPPORTED_MESSAGE_TYPE;
+    }
+
+    public static boolean isInvalidMessageType(long type) {
+      return (type & BASE_TYPE_MASK) == INVALID_MESSAGE_TYPE;
     }
 
     public static boolean isSecureType(long type) {

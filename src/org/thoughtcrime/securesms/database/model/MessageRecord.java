@@ -17,6 +17,7 @@
 package org.thoughtcrime.securesms.database.model;
 
 import android.content.Context;
+import androidx.annotation.NonNull;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.style.RelativeSizeSpan;
@@ -53,7 +54,7 @@ public abstract class MessageRecord extends DisplayRecord {
   private final long                      expireStarted;
   private final boolean                   unidentified;
 
-  MessageRecord(Context context, long id, String body, Recipient conversationRecipient,
+  MessageRecord(long id, String body, Recipient conversationRecipient,
                 Recipient individualRecipient, int recipientDeviceId,
                 long dateSent, long dateReceived, long threadId,
                 int deliveryStatus, int deliveryReceiptCount, long type,
@@ -62,7 +63,7 @@ public abstract class MessageRecord extends DisplayRecord {
                 int subscriptionId, long expiresIn, long expireStarted,
                 int readReceiptCount, boolean unidentified)
   {
-    super(context, body, conversationRecipient, dateSent, dateReceived,
+    super(body, conversationRecipient, dateSent, dateReceived,
           threadId, deliveryStatus, deliveryReceiptCount, type, readReceiptCount);
     this.id                  = id;
     this.individualRecipient = individualRecipient;
@@ -87,7 +88,7 @@ public abstract class MessageRecord extends DisplayRecord {
   }
 
   @Override
-  public SpannableString getDisplayBody() {
+  public SpannableString getDisplayBody(@NonNull Context context) {
     if (isGroupUpdate() && isOutgoing()) {
       return new SpannableString(context.getString(R.string.MessageRecord_you_updated_group));
     } else if (isGroupUpdate()) {
@@ -187,7 +188,7 @@ public abstract class MessageRecord extends DisplayRecord {
   }
 
   public Recipient getIndividualRecipient() {
-    return individualRecipient;
+    return individualRecipient.live().get();
   }
 
   public int getRecipientDeviceId() {
@@ -243,5 +244,9 @@ public abstract class MessageRecord extends DisplayRecord {
 
   public boolean isUnidentified() {
     return unidentified;
+  }
+
+  public boolean isViewOnce() {
+    return false;
   }
 }

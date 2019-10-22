@@ -1,14 +1,14 @@
 package org.thoughtcrime.securesms.jobs;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.annotation.WorkerThread;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.WorkerThread;
 
 import com.annimon.stream.Stream;
 
 import org.thoughtcrime.securesms.ApplicationContext;
 import org.thoughtcrime.securesms.attachments.Attachment;
-import org.thoughtcrime.securesms.attachments.DatabaseAttachment;
 import org.thoughtcrime.securesms.crypto.UnidentifiedAccessUtil;
 import org.thoughtcrime.securesms.database.Address;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
@@ -16,10 +16,10 @@ import org.thoughtcrime.securesms.database.MessagingDatabase.SyncMessageId;
 import org.thoughtcrime.securesms.database.MmsDatabase;
 import org.thoughtcrime.securesms.database.NoSuchMessageException;
 import org.thoughtcrime.securesms.database.RecipientDatabase.UnidentifiedAccessMode;
-import org.thoughtcrime.securesms.dependencies.InjectableType;
-import org.thoughtcrime.securesms.jobmanager.ChainParameters;
+import org.thoughtcrime.securesms.dependencies.ApplicationDependencies;
+import org.thoughtcrime.securesms.jobmanager.Data;
+import org.thoughtcrime.securesms.jobmanager.Job;
 import org.thoughtcrime.securesms.jobmanager.JobManager;
-import org.thoughtcrime.securesms.jobmanager.SafeData;
 import org.thoughtcrime.securesms.logging.Log;
 import org.thoughtcrime.securesms.mms.MmsException;
 import org.thoughtcrime.securesms.mms.OutgoingMediaMessage;
@@ -43,56 +43,40 @@ import org.whispersystems.signalservice.api.push.exceptions.UnregisteredUserExce
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.LinkedList;
 import java.util.List;
 
-import javax.inject.Inject;
+public class PushMediaSendJob extends PushSendJob {
 
-import androidx.work.Data;
-import androidx.work.WorkerParameters;
-
-public class PushMediaSendJob extends PushSendJob implements InjectableType {
-
-  private static final long serialVersionUID = 1L;
+  public static final String KEY = "PushMediaSendJob";
 
   private static final String TAG = PushMediaSendJob.class.getSimpleName();
 
   private static final String KEY_MESSAGE_ID = "message_id";
 
-  @Inject transient SignalServiceMessageSender messageSender;
-
   private long messageId;
 
-  public PushMediaSendJob(@NonNull Context context, @NonNull WorkerParameters workerParameters) {
-    super(context, workerParameters);
+  public PushMediaSendJob(long messageId, @NonNull Recipient recipient) {
+    this(constructParameters(recipient), messageId);
   }
 
-  public PushMediaSendJob(Context context, long messageId, Address destination) {
-    super(context, constructParameters(destination));
+  private PushMediaSendJob(Job.Parameters parameters, long messageId) {
+    super(parameters);
     this.messageId = messageId;
   }
 
   @WorkerThread
-  public static void enqueue(@NonNull Context context, @NonNull JobManager jobManager, long messageId, @NonNull Address destination) {
+  public static void enqueue(@NonNull Context context, @NonNull JobManager jobManager, long messageId, @NonNull Recipient recipient) {
     try {
-      MmsDatabase          database    = DatabaseFactory.getMmsDatabase(context);
-      OutgoingMediaMessage message     = database.getOutgoingMessage(messageId);
-      List<Attachment>     attachments = new LinkedList<>();
-
-      attachments.addAll(message.getAttachments());
-      attachments.addAll(Stream.of(message.getLinkPreviews()).filter(p -> p.getThumbnail().isPresent()).map(p -> p.getThumbnail().get()).toList());
-      attachments.addAll(Stream.of(message.getSharedContacts()).filter(c -> c.getAvatar() != null).map(c -> c.getAvatar().getAttachment()).withoutNulls().toList());
-
-      List<AttachmentUploadJob> attachmentJobs = Stream.of(attachments).map(a -> new AttachmentUploadJob(context, ((DatabaseAttachment) a).getAttachmentId())).toList();
-      ChainParameters           chainParams    = new ChainParameters.Builder().setGroupId(destination.serialize()).build();
-
-      if (attachmentJobs.isEmpty()) {
-        jobManager.add(new PushMediaSendJob(context, messageId, destination));
-      } else {
-        jobManager.startChain(attachmentJobs)
-                  .then(new PushMediaSendJob(context, messageId, destination))
-                  .enqueue(chainParams);
+      if (!recipient.requireAddress().isPhone()) {
+        throw new AssertionError();
       }
+
+      MmsDatabase          database                    = DatabaseFactory.getMmsDatabase(context);
+      OutgoingMediaMessage message                     = database.getOutgoingMessage(messageId);
+      JobManager.Chain     compressAndUploadAttachment = createCompressingAndUploadAttachmentsChain(jobManager, message);
+
+      compressAndUploadAttachment.then(new PushMediaSendJob(messageId, recipient))
+                                 .enqueue();
 
     } catch (NoSuchMessageException | MmsException e) {
       Log.w(TAG, "Failed to enqueue message.", e);
@@ -102,17 +86,17 @@ public class PushMediaSendJob extends PushSendJob implements InjectableType {
   }
 
   @Override
-  protected void initialize(@NonNull SafeData data) {
-    messageId = data.getLong(KEY_MESSAGE_ID);
+  public @NonNull Data serialize() {
+    return new Data.Builder().putLong(KEY_MESSAGE_ID, messageId).build();
   }
 
   @Override
-  protected @NonNull Data serialize(@NonNull Data.Builder dataBuilder) {
-    return dataBuilder.putLong(KEY_MESSAGE_ID, messageId).build();
+  public @NonNull String getFactoryKey() {
+    return KEY;
   }
 
   @Override
-  protected void onAdded() {
+  public void onAdded() {
     DatabaseFactory.getMmsDatabase(context).markAsSending(messageId);
   }
 
@@ -144,7 +128,7 @@ public class PushMediaSendJob extends PushSendJob implements InjectableType {
       database.markUnidentified(messageId, unidentified);
 
       if (recipient.isLocalNumber()) {
-        SyncMessageId id = new SyncMessageId(recipient.getAddress(), message.getSentTimeMillis());
+        SyncMessageId id = new SyncMessageId(recipient.getId(), message.getSentTimeMillis());
         DatabaseFactory.getMmsSmsDatabase(context).incrementDeliveryReceiptCount(id, System.currentTimeMillis());
         DatabaseFactory.getMmsSmsDatabase(context).incrementReadReceiptCount(id, System.currentTimeMillis());
       }
@@ -152,13 +136,13 @@ public class PushMediaSendJob extends PushSendJob implements InjectableType {
       if (TextSecurePreferences.isUnidentifiedDeliveryEnabled(context)) {
         if (unidentified && accessMode == UnidentifiedAccessMode.UNKNOWN && profileKey == null) {
           log(TAG, "Marking recipient as UD-unrestricted following a UD send.");
-          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient, UnidentifiedAccessMode.UNRESTRICTED);
+          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient.getId(), UnidentifiedAccessMode.UNRESTRICTED);
         } else if (unidentified && accessMode == UnidentifiedAccessMode.UNKNOWN) {
           log(TAG, "Marking recipient as UD-enabled following a UD send.");
-          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient, UnidentifiedAccessMode.ENABLED);
+          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient.getId(), UnidentifiedAccessMode.ENABLED);
         } else if (!unidentified && accessMode != UnidentifiedAccessMode.DISABLED) {
           log(TAG, "Marking recipient as UD-disabled following a non-UD send.");
-          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient, UnidentifiedAccessMode.DISABLED);
+          DatabaseFactory.getRecipientDatabase(context).setUnidentifiedAccessMode(recipient.getId(), UnidentifiedAccessMode.DISABLED);
         }
       }
 
@@ -167,22 +151,26 @@ public class PushMediaSendJob extends PushSendJob implements InjectableType {
         expirationManager.scheduleDeletion(messageId, true, message.getExpiresIn());
       }
 
+      if (message.isViewOnce()) {
+        DatabaseFactory.getAttachmentDatabase(context).deleteAttachmentFilesForMessage(messageId);
+      }
+
       log(TAG, "Sent message: " + messageId);
 
     } catch (InsecureFallbackApprovalException ifae) {
       warn(TAG, "Failure", ifae);
       database.markAsPendingInsecureSmsFallback(messageId);
       notifyMediaMessageDeliveryFailed(context, messageId);
-      ApplicationContext.getInstance(context).getJobManager().add(new DirectoryRefreshJob(context, false));
+      ApplicationDependencies.getJobManager().add(new DirectoryRefreshJob(false));
     } catch (UntrustedIdentityException uie) {
       warn(TAG, "Failure", uie);
-      database.addMismatchedIdentity(messageId, Address.fromSerialized(uie.getE164Number()), uie.getIdentityKey());
+      database.addMismatchedIdentity(messageId, Recipient.external(context, uie.getE164Number()).getId(), uie.getIdentityKey());
       database.markAsSentFailed(messageId);
     }
   }
 
   @Override
-  public boolean onShouldRetry(Exception exception) {
+  public boolean onShouldRetry(@NonNull Exception exception) {
     if (exception instanceof RetryLaterException) return true;
     return false;
   }
@@ -201,22 +189,35 @@ public class PushMediaSendJob extends PushSendJob implements InjectableType {
       throw new UndeliverableMessageException("No destination address.");
     }
 
+    final Address destination = message.getRecipient().requireAddress();
+
+    if (!destination.isPhone()) {
+      if (destination.isEmail()) throw new UndeliverableMessageException("Not e164, is email");
+      if (destination.isGroup()) throw new UndeliverableMessageException("Not e164, is group");
+      throw new UndeliverableMessageException("Not e164, unknown");
+    }
+
     try {
       rotateSenderCertificateIfNecessary();
 
-      SignalServiceAddress                     address            = getPushAddress(message.getRecipient().getAddress());
-      List<SignalServiceAttachment>            serviceAttachments = getAttachmentPointersFor(message.getAttachments());
-      Optional<byte[]>                         profileKey         = getProfileKey(message.getRecipient());
-      Optional<SignalServiceDataMessage.Quote> quote              = getQuoteFor(message);
-      List<SharedContact>                      sharedContacts     = getSharedContactsFor(message);
-      List<Preview>                            previews           = getPreviewsFor(message);
-      SignalServiceDataMessage                 mediaMessage       = SignalServiceDataMessage.newBuilder()
+      SignalServiceMessageSender                 messageSender      = ApplicationDependencies.getSignalServiceMessageSender();
+      SignalServiceAddress                       address            = getPushAddress(destination);
+      List<Attachment>                           attachments        = Stream.of(message.getAttachments()).filterNot(Attachment::isSticker).toList();
+      List<SignalServiceAttachment>              serviceAttachments = getAttachmentPointersFor(attachments);
+      Optional<byte[]>                           profileKey         = getProfileKey(message.getRecipient());
+      Optional<SignalServiceDataMessage.Quote>   quote              = getQuoteFor(message);
+      Optional<SignalServiceDataMessage.Sticker> sticker            = getStickerFor(message);
+      List<SharedContact>                        sharedContacts     = getSharedContactsFor(message);
+      List<Preview>                              previews           = getPreviewsFor(message);
+      SignalServiceDataMessage                   mediaMessage       = SignalServiceDataMessage.newBuilder()
                                                                                             .withBody(message.getBody())
                                                                                             .withAttachments(serviceAttachments)
                                                                                             .withTimestamp(message.getSentTimeMillis())
                                                                                             .withExpiration((int)(message.getExpiresIn() / 1000))
+                                                                                            .withViewOnce(message.isViewOnce())
                                                                                             .withProfileKey(profileKey.orNull())
                                                                                             .withQuote(quote.orNull())
+                                                                                            .withSticker(sticker.orNull())
                                                                                             .withSharedContacts(sharedContacts)
                                                                                             .withPreviews(previews)
                                                                                             .asExpirationUpdate(message.isExpirationUpdate())
@@ -240,6 +241,13 @@ public class PushMediaSendJob extends PushSendJob implements InjectableType {
     } catch (IOException e) {
       warn(TAG, e);
       throw new RetryLaterException(e);
+    }
+  }
+
+  public static final class Factory implements Job.Factory<PushMediaSendJob> {
+    @Override
+    public @NonNull PushMediaSendJob create(@NonNull Parameters parameters, @NonNull Data data) {
+      return new PushMediaSendJob(parameters, data.getLong(KEY_MESSAGE_ID));
     }
   }
 }

@@ -34,15 +34,16 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Vibrator;
-import android.support.annotation.DrawableRes;
-import android.support.annotation.NonNull;
-import android.support.annotation.RequiresApi;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentTransaction;
-import android.support.v7.widget.SwitchCompat;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.NonNull;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentTransaction;
+import androidx.appcompat.widget.SwitchCompat;
 import android.text.Html;
 import android.text.TextUtils;
 import android.text.method.LinkMovementMethod;
+
+import org.thoughtcrime.securesms.dependencies.ApplicationDependencies;
 import org.thoughtcrime.securesms.logging.Log;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
@@ -65,7 +66,6 @@ import org.thoughtcrime.securesms.color.MaterialColor;
 import org.thoughtcrime.securesms.components.camera.CameraView;
 import org.thoughtcrime.securesms.crypto.IdentityKeyParcelable;
 import org.thoughtcrime.securesms.crypto.IdentityKeyUtil;
-import org.thoughtcrime.securesms.database.Address;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
 import org.thoughtcrime.securesms.database.IdentityDatabase.VerifiedStatus;
 import org.thoughtcrime.securesms.jobs.MultiDeviceVerifiedUpdateJob;
@@ -73,8 +73,10 @@ import org.thoughtcrime.securesms.permissions.Permissions;
 import org.thoughtcrime.securesms.qr.QrCode;
 import org.thoughtcrime.securesms.qr.ScanListener;
 import org.thoughtcrime.securesms.qr.ScanningThread;
+import org.thoughtcrime.securesms.recipients.LiveRecipient;
 import org.thoughtcrime.securesms.recipients.Recipient;
-import org.thoughtcrime.securesms.recipients.RecipientModifiedListener;
+import org.thoughtcrime.securesms.recipients.RecipientId;
+import org.thoughtcrime.securesms.util.DynamicDarkActionBarTheme;
 import org.thoughtcrime.securesms.util.DynamicLanguage;
 import org.thoughtcrime.securesms.util.DynamicTheme;
 import org.thoughtcrime.securesms.util.IdentityUtil;
@@ -89,6 +91,7 @@ import org.whispersystems.libsignal.fingerprint.NumericFingerprintGenerator;
 
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
+import java.util.Locale;
 
 import static org.whispersystems.libsignal.SessionCipher.SESSION_LOCK;
 
@@ -98,15 +101,15 @@ import static org.whispersystems.libsignal.SessionCipher.SESSION_LOCK;
  * @author Moxie Marlinspike
  */
 @SuppressLint("StaticFieldLeak")
-public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity implements RecipientModifiedListener, ScanListener, View.OnClickListener {
+public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity implements ScanListener, View.OnClickListener {
 
   private static final String TAG = VerifyIdentityActivity.class.getSimpleName();
 
-  public static final String ADDRESS_EXTRA  = "address";
-  public static final String IDENTITY_EXTRA = "recipient_identity";
-  public static final String VERIFIED_EXTRA = "verified_state";
+  public static final String RECIPIENT_EXTRA = "recipient_id";
+  public static final String IDENTITY_EXTRA  = "recipient_identity";
+  public static final String VERIFIED_EXTRA  = "verified_state";
 
-  private final DynamicTheme    dynamicTheme    = new DynamicTheme();
+  private final DynamicTheme    dynamicTheme    = new DynamicDarkActionBarTheme();
   private final DynamicLanguage dynamicLanguage = new DynamicLanguage();
 
   private VerifyDisplayFragment displayFragment = new VerifyDisplayFragment();
@@ -123,15 +126,14 @@ public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity 
     getSupportActionBar().setDisplayHomeAsUpEnabled(true);
     getSupportActionBar().setTitle(R.string.AndroidManifest__verify_safety_number);
 
-    Recipient recipient = Recipient.from(this, (Address)getIntent().getParcelableExtra(ADDRESS_EXTRA), true);
-    recipient.addListener(this);
+    LiveRecipient recipient = Recipient.live(getIntent().getParcelableExtra(RECIPIENT_EXTRA));
+    recipient.observe(this, r -> setActionBarNotificationBarColor(r.getColor()));
 
-    setActionBarNotificationBarColor(recipient.getColor());
+    setActionBarNotificationBarColor(recipient.get().getColor());
 
     Bundle extras = new Bundle();
-    extras.putParcelable(VerifyDisplayFragment.REMOTE_ADDRESS, getIntent().getParcelableExtra(ADDRESS_EXTRA));
+    extras.putParcelable(VerifyDisplayFragment.RECIPIENT_ID, getIntent().getParcelableExtra(RECIPIENT_EXTRA));
     extras.putParcelable(VerifyDisplayFragment.REMOTE_IDENTITY, getIntent().getParcelableExtra(IDENTITY_EXTRA));
-    extras.putString(VerifyDisplayFragment.REMOTE_NUMBER, recipient.getAddress().toPhoneString());
     extras.putParcelable(VerifyDisplayFragment.LOCAL_IDENTITY, new IdentityKeyParcelable(IdentityKeyUtil.getIdentityKey(this)));
     extras.putString(VerifyDisplayFragment.LOCAL_NUMBER, TextSecurePreferences.getLocalNumber(this));
     extras.putBoolean(VerifyDisplayFragment.VERIFIED_STATE, getIntent().getBooleanExtra(VERIFIED_EXTRA, false));
@@ -149,11 +151,6 @@ public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity 
     }
 
     return false;
-  }
-
-  @Override
-  public void onModified(final Recipient recipient) {
-    Util.runOnMain(() -> setActionBarNotificationBarColor(recipient.getColor()));
   }
 
   @Override
@@ -198,18 +195,18 @@ public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity 
     }
   }
 
-  public static class VerifyDisplayFragment extends Fragment implements RecipientModifiedListener, CompoundButton.OnCheckedChangeListener {
+  public static class VerifyDisplayFragment extends Fragment implements CompoundButton.OnCheckedChangeListener {
 
-    public static final String REMOTE_ADDRESS  = "remote_address";
+    public static final String RECIPIENT_ID    = "recipient_id";
     public static final String REMOTE_NUMBER   = "remote_number";
     public static final String REMOTE_IDENTITY = "remote_identity";
     public static final String LOCAL_IDENTITY  = "local_identity";
     public static final String LOCAL_NUMBER    = "local_number";
     public static final String VERIFIED_STATE  = "verified_state";
 
-    private Recipient    recipient;
-    private String       localNumber;
-    private String       remoteNumber;
+    private LiveRecipient recipient;
+    private String        localNumber;
+    private String        remoteNumber;
 
     private IdentityKey localIdentity;
     private IdentityKey remoteIdentity;
@@ -230,7 +227,7 @@ public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity 
     private boolean    animateFailureOnDraw = false;
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup viewGroup, Bundle bundle) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup viewGroup, Bundle bundle) {
       this.container        = ViewUtil.inflate(inflater, viewGroup, R.layout.verify_display_fragment);
       this.numbersContainer = ViewUtil.findById(container, R.id.number_table);
       this.qrCode           = ViewUtil.findById(container, R.id.qr_code);
@@ -264,21 +261,21 @@ public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity 
     public void onCreate(Bundle bundle) {
       super.onCreate(bundle);
 
-      Address               address                  = getArguments().getParcelable(REMOTE_ADDRESS);
+      RecipientId           recipientId              = getArguments().getParcelable(RECIPIENT_ID);
       IdentityKeyParcelable localIdentityParcelable  = getArguments().getParcelable(LOCAL_IDENTITY);
       IdentityKeyParcelable remoteIdentityParcelable = getArguments().getParcelable(REMOTE_IDENTITY);
 
-      if (address == null)                  throw new AssertionError("Address required");
+      if (recipientId == null)              throw new AssertionError("RecipientId required");
       if (localIdentityParcelable == null)  throw new AssertionError("local identity required");
       if (remoteIdentityParcelable == null) throw new AssertionError("remote identity required");
 
       this.localNumber    = getArguments().getString(LOCAL_NUMBER);
       this.localIdentity  = localIdentityParcelable.get();
-      this.remoteNumber   = getArguments().getString(REMOTE_NUMBER);
-      this.recipient      = Recipient.from(getActivity(), address, true);
+      this.recipient      = Recipient.live(recipientId);
+      this.remoteNumber   = recipient.get().requireAddress().serialize();
       this.remoteIdentity = remoteIdentityParcelable.get();
 
-      this.recipient.addListener(this);
+      this.recipient.observe(this, this::setRecipientText);
 
       new AsyncTask<Void, Void, Fingerprint>() {
         @Override
@@ -299,15 +296,10 @@ public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity 
     }
 
     @Override
-    public void onModified(final Recipient recipient) {
-      Util.runOnMain(() -> setRecipientText(recipient));
-    }
-
-    @Override
     public void onResume() {
       super.onResume();
 
-      setRecipientText(recipient);
+      setRecipientText(recipient.get());
 
       if (fingerprint != null) {
         setFingerprintViews(fingerprint, false);
@@ -320,12 +312,6 @@ public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity 
         animateFailureOnDraw = false;
         animateVerifiedFailure();
       }
-    }
-
-    @Override
-    public void onDestroy() {
-      super.onDestroy();
-      recipient.removeListener(this);
     }
 
     @Override
@@ -483,30 +469,25 @@ public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity 
     }
 
     private void setCodeSegment(final TextView codeView, String segment) {
-      if (Build.VERSION.SDK_INT >= 11) {
-        ValueAnimator valueAnimator = new ValueAnimator();
-        valueAnimator.setObjectValues(0, Integer.parseInt(segment));
+      ValueAnimator valueAnimator = new ValueAnimator();
+      valueAnimator.setObjectValues(0, Integer.parseInt(segment));
 
-        valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
-          @RequiresApi(api = Build.VERSION_CODES.HONEYCOMB)
-          @Override
-          public void onAnimationUpdate(ValueAnimator animation) {
-            int value = (int) animation.getAnimatedValue();
-            codeView.setText(String.format("%05d", value));
-          }
-        });
+      valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+        @Override
+        public void onAnimationUpdate(ValueAnimator animation) {
+          int value = (int) animation.getAnimatedValue();
+          codeView.setText(String.format(Locale.getDefault(), "%05d", value));
+        }
+      });
 
-        valueAnimator.setEvaluator(new TypeEvaluator<Integer>() {
-          public Integer evaluate(float fraction, Integer startValue, Integer endValue) {
-            return Math.round(startValue + (endValue - startValue) * fraction);
-          }
-        });
+      valueAnimator.setEvaluator(new TypeEvaluator<Integer>() {
+        public Integer evaluate(float fraction, Integer startValue, Integer endValue) {
+          return Math.round(startValue + (endValue - startValue) * fraction);
+        }
+      });
 
-        valueAnimator.setDuration(1000);
-        valueAnimator.start();
-      } else {
-        codeView.setText(segment);
-      }
+      valueAnimator.setDuration(1000);
+      valueAnimator.start();
     }
 
     private String[] getSegments(Fingerprint fingerprint, int segmentCount) {
@@ -592,32 +573,30 @@ public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity 
         protected Void doInBackground(Recipient... params) {
           synchronized (SESSION_LOCK) {
             if (isChecked) {
-              Log.i(TAG, "Saving identity: " + params[0].getAddress());
+              Log.i(TAG, "Saving identity: " + params[0].requireAddress());
               DatabaseFactory.getIdentityDatabase(getActivity())
-                             .saveIdentity(params[0].getAddress(),
+                             .saveIdentity(params[0].getId(),
                                            remoteIdentity,
                                            VerifiedStatus.VERIFIED, false,
                                            System.currentTimeMillis(), true);
             } else {
               DatabaseFactory.getIdentityDatabase(getActivity())
-                             .setVerified(params[0].getAddress(),
+                             .setVerified(params[0].getId(),
                                           remoteIdentity,
                                           VerifiedStatus.DEFAULT);
             }
 
-            ApplicationContext.getInstance(getActivity())
-                              .getJobManager()
-                              .add(new MultiDeviceVerifiedUpdateJob(getActivity(),
-                                                                    recipient.getAddress(),
-                                                                    remoteIdentity,
-                                                                    isChecked ? VerifiedStatus.VERIFIED :
-                                                                                VerifiedStatus.DEFAULT));
+            ApplicationDependencies.getJobManager()
+                                   .add(new MultiDeviceVerifiedUpdateJob(recipient.getId(),
+                                                                         remoteIdentity,
+                                                                         isChecked ? VerifiedStatus.VERIFIED :
+                                                                                     VerifiedStatus.DEFAULT));
 
-            IdentityUtil.markIdentityVerified(getActivity(), recipient, isChecked, false);
+            IdentityUtil.markIdentityVerified(getActivity(), recipient.get(), isChecked, false);
           }
           return null;
         }
-      }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, recipient);
+      }.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, recipient.get());
     }
   }
 
@@ -628,7 +607,7 @@ public class VerifyIdentityActivity extends PassphraseRequiredActionBarActivity 
     private ScanningThread scanningThread;
     private ScanListener   scanListener;
 
-    public View onCreateView(LayoutInflater inflater, ViewGroup viewGroup, Bundle bundle) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup viewGroup, Bundle bundle) {
       this.container  = ViewUtil.inflate(inflater, viewGroup, R.layout.verify_scan_fragment);
       this.cameraView = ViewUtil.findById(container, R.id.scanner);
 

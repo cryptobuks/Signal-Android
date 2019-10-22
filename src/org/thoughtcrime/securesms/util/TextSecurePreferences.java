@@ -7,16 +7,16 @@ import android.net.Uri;
 import android.os.Build;
 import android.preference.PreferenceManager;
 import android.provider.Settings;
-import android.support.annotation.ArrayRes;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.app.NotificationCompat;
-import org.thoughtcrime.securesms.logging.Log;
+import androidx.annotation.ArrayRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.app.NotificationCompat;
 
 import org.greenrobot.eventbus.EventBus;
 import org.thoughtcrime.securesms.R;
-import org.thoughtcrime.securesms.jobs.requirements.SqlCipherMigrationRequirementProvider;
+import org.thoughtcrime.securesms.jobmanager.impl.SqlCipherMigrationConstraintObserver;
 import org.thoughtcrime.securesms.lock.RegistrationLockReminders;
+import org.thoughtcrime.securesms.logging.Log;
 import org.thoughtcrime.securesms.preferences.widgets.NotificationPrivacyPreference;
 import org.whispersystems.libsignal.util.Medium;
 
@@ -177,6 +177,26 @@ public class TextSecurePreferences {
 
   public static final String LINK_PREVIEWS = "pref_link_previews";
 
+  private static final String GIF_GRID_LAYOUT = "pref_gif_grid_layout";
+
+  private static final String SEEN_STICKER_INTRO_TOOLTIP = "pref_seen_sticker_intro_tooltip";
+
+  private static final String MEDIA_KEYBOARD_MODE = "pref_media_keyboard_mode";
+
+  private static final String VIEW_ONCE_DEFAULT = "pref_revealable_message_default";
+
+  private static final String SEEN_CAMERA_FIRST_TOOLTIP = "pref_seen_camera_first_tooltip";
+
+  private static final String JOB_MANAGER_VERSION = "pref_job_manager_version";
+
+  private static final String APP_MIGRATION_VERSION = "pref_app_migration_version";
+
+  private static final String FIRST_INSTALL_VERSION = "pref_first_install_version";
+
+  private static final String HAS_SEEN_SWIPE_TO_REPLY = "pref_has_seen_swipe_to_reply";
+
+  private static final String HAS_SEEN_VIDEO_RECORDING_TOOLTIP = "camerax.fragment.has.dismissed.video.recording.tooltip";
+
   public static boolean isScreenLockEnabled(@NonNull Context context) {
     return getBooleanPreference(context, SCREEN_LOCK, false);
   }
@@ -283,7 +303,7 @@ public class TextSecurePreferences {
 
   public static void setNeedsSqlCipherMigration(@NonNull Context context, boolean value) {
     setBooleanPreference(context, NEEDS_SQLCIPHER_MIGRATION, value);
-    EventBus.getDefault().post(new SqlCipherMigrationRequirementProvider.SqlCipherNeedsMigrationEvent());
+    EventBus.getDefault().post(new SqlCipherMigrationConstraintObserver.SqlCipherNeedsMigrationEvent());
   }
 
   public static boolean getNeedsSqlCipherMigration(@NonNull Context context) {
@@ -360,6 +380,14 @@ public class TextSecurePreferences {
 
   public static boolean isLinkPreviewsEnabled(Context context) {
     return getBooleanPreference(context, LINK_PREVIEWS, true);
+  }
+
+  public static boolean isGifSearchInGridLayout(Context context) {
+    return getBooleanPreference(context, GIF_GRID_LAYOUT, false);
+  }
+
+  public static void setIsGifSearchInGridLayout(Context context, boolean isGrid) {
+    setBooleanPreference(context, GIF_GRID_LAYOUT, isGrid);
   }
 
   public static @Nullable String getProfileKey(Context context) {
@@ -498,13 +526,13 @@ public class TextSecurePreferences {
 
   public static void setFcmToken(Context context, String registrationId) {
     setStringPreference(context, GCM_REGISTRATION_ID_PREF, registrationId);
-    setIntegerPrefrence(context, GCM_REGISTRATION_ID_VERSION_PREF, Util.getCurrentApkReleaseVersion(context));
+    setIntegerPrefrence(context, GCM_REGISTRATION_ID_VERSION_PREF, Util.getCanonicalVersionCode());
   }
 
   public static String getFcmToken(Context context) {
     int storedRegistrationIdVersion = getIntegerPreference(context, GCM_REGISTRATION_ID_VERSION_PREF, 0);
 
-    if (storedRegistrationIdVersion != Util.getCurrentApkReleaseVersion(context)) {
+    if (storedRegistrationIdVersion != Util.getCanonicalVersionCode()) {
       return null;
     } else {
       return getStringPreference(context, GCM_REGISTRATION_ID_PREF, null);
@@ -520,11 +548,7 @@ public class TextSecurePreferences {
   }
 
   public static boolean isSmsEnabled(Context context) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-      return Util.isDefaultSmsProvider(context);
-    } else {
-      return isInterceptAllSmsEnabled(context);
-    }
+    return Util.isDefaultSmsProvider(context);
   }
 
   public static int getLocalRegistrationId(Context context) {
@@ -769,7 +793,7 @@ public class TextSecurePreferences {
   }
 
   public static int getLastVersionCode(Context context) {
-    return getIntegerPreference(context, LAST_VERSION_CODE_PREF, 0);
+    return getIntegerPreference(context, LAST_VERSION_CODE_PREF, Util.getCanonicalVersionCode());
   }
 
   public static void setLastVersionCode(Context context, int versionCode) throws IOException {
@@ -1071,6 +1095,79 @@ public class TextSecurePreferences {
     setBooleanPreference(context, NEEDS_MESSAGE_PULL, needsMessagePull);
   }
 
+  public static boolean hasSeenStickerIntroTooltip(Context context) {
+    return getBooleanPreference(context, SEEN_STICKER_INTRO_TOOLTIP, false);
+  }
+
+  public static void setHasSeenStickerIntroTooltip(Context context, boolean seenStickerTooltip) {
+    setBooleanPreference(context, SEEN_STICKER_INTRO_TOOLTIP, seenStickerTooltip);
+  }
+
+  public static void setMediaKeyboardMode(Context context, MediaKeyboardMode mode) {
+    setStringPreference(context, MEDIA_KEYBOARD_MODE, mode.name());
+  }
+
+  public static MediaKeyboardMode getMediaKeyboardMode(Context context) {
+    String name = getStringPreference(context, MEDIA_KEYBOARD_MODE, MediaKeyboardMode.EMOJI.name());
+    return MediaKeyboardMode.valueOf(name);
+  }
+
+  public static void setIsRevealableMessageEnabled(Context context, boolean value) {
+    setBooleanPreference(context, VIEW_ONCE_DEFAULT, value);
+  }
+
+  public static boolean isRevealableMessageEnabled(Context context) {
+    return getBooleanPreference(context, VIEW_ONCE_DEFAULT, false);
+  }
+
+  public static void setHasSeenCameraFirstTooltip(Context context, boolean value) {
+    setBooleanPreference(context, SEEN_CAMERA_FIRST_TOOLTIP, value);
+  }
+
+  public static boolean hasSeendCameraFirstTooltip(Context context) {
+    return getBooleanPreference(context, SEEN_CAMERA_FIRST_TOOLTIP, false);
+  }
+
+  public static void setJobManagerVersion(Context context, int version) {
+    setIntegerPrefrence(context, JOB_MANAGER_VERSION, version);
+  }
+
+  public static int getJobManagerVersion(Context contex) {
+    return getIntegerPreference(contex, JOB_MANAGER_VERSION, 1);
+  }
+
+  public static void setAppMigrationVersion(Context context, int version) {
+    setIntegerPrefrence(context, APP_MIGRATION_VERSION, version);
+  }
+
+  public static int getAppMigrationVersion(Context context) {
+    return getIntegerPreference(context, APP_MIGRATION_VERSION, 1);
+  }
+
+  public static void setFirstInstallVersion(Context context, int version) {
+    setIntegerPrefrence(context, FIRST_INSTALL_VERSION, version);
+  }
+
+  public static int getFirstInstallVersion(Context context) {
+    return getIntegerPreference(context, FIRST_INSTALL_VERSION, -1);
+  }
+
+  public static boolean hasSeenSwipeToReplyTooltip(Context context) {
+    return getBooleanPreference(context, HAS_SEEN_SWIPE_TO_REPLY, false);
+  }
+
+  public static void setHasSeenSwipeToReplyTooltip(Context context, boolean value) {
+    setBooleanPreference(context, HAS_SEEN_SWIPE_TO_REPLY, value);
+  }
+
+  public static boolean hasSeenVideoRecordingTooltip(Context context) {
+    return getBooleanPreference(context, HAS_SEEN_VIDEO_RECORDING_TOOLTIP, false);
+  }
+
+  public static void setHasSeenVideoRecordingTooltip(Context context, boolean value) {
+    setBooleanPreference(context, HAS_SEEN_VIDEO_RECORDING_TOOLTIP, value);
+  }
+
   public static void setBooleanPreference(Context context, String key, boolean value) {
     PreferenceManager.getDefaultSharedPreferences(context).edit().putBoolean(key, value).apply();
   }
@@ -1118,5 +1215,10 @@ public class TextSecurePreferences {
     } else {
       return defaultValues;
     }
+  }
+
+  // NEVER rename these -- they're persisted by name
+  public enum MediaKeyboardMode {
+    EMOJI, STICKER
   }
 }

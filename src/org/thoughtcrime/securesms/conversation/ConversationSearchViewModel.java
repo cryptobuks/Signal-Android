@@ -1,13 +1,13 @@
 package org.thoughtcrime.securesms.conversation;
 
 import android.app.Application;
-import android.arch.lifecycle.AndroidViewModel;
-import android.arch.lifecycle.LiveData;
+import androidx.lifecycle.AndroidViewModel;
+import androidx.lifecycle.LiveData;
 import android.content.Context;
-import android.os.AsyncTask;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import org.thoughtcrime.securesms.contacts.ContactAccessor;
+import org.thoughtcrime.securesms.contacts.ContactRepository;
 import org.thoughtcrime.securesms.database.CursorList;
 import org.thoughtcrime.securesms.database.DatabaseFactory;
 import org.thoughtcrime.securesms.search.SearchRepository;
@@ -15,6 +15,7 @@ import org.thoughtcrime.securesms.search.model.MessageResult;
 import org.thoughtcrime.securesms.util.CloseableLiveData;
 import org.thoughtcrime.securesms.util.Debouncer;
 import org.thoughtcrime.securesms.util.Util;
+import org.thoughtcrime.securesms.util.concurrent.SignalExecutors;
 
 import java.io.Closeable;
 import java.util.List;
@@ -37,23 +38,23 @@ public class ConversationSearchViewModel extends AndroidViewModel {
     debouncer        = new Debouncer(500);
     searchRepository = new SearchRepository(context,
                                             DatabaseFactory.getSearchDatabase(context),
-                                            DatabaseFactory.getContactsDatabase(context),
                                             DatabaseFactory.getThreadDatabase(context),
+                                            new ContactRepository(application),
                                             ContactAccessor.getInstance(),
-                                            AsyncTask.THREAD_POOL_EXECUTOR);
+                                            SignalExecutors.SERIAL);
   }
 
   LiveData<SearchResult> getSearchResults() {
     return result;
   }
 
-  void onQueryUpdated(@NonNull String query, long threadId) {
+  void onQueryUpdated(@NonNull String query, long threadId, boolean forced) {
     if (firstSearch && query.length() < 2) {
       result.postValue(new SearchResult(CursorList.emptyList(), 0));
       return;
     }
 
-    if (query.equals(activeQuery)) {
+    if (query.equals(activeQuery) && !forced) {
       return;
     }
 
